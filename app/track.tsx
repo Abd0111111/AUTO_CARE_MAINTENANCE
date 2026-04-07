@@ -1,40 +1,37 @@
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BottomNavbar } from "@/components/bottom-navbar";
+import { BottomNavbar } from '@/components/bottom-navbar';
 
 const COLORS = {
-  background: "#09182d",
-  border: "rgba(255,255,255,0.08)",
-  text: "#f8fafc",
-  muted: "#b8c3d6",
-  primary: "#3f7cff",
-  primarySoft: "#5b8cff",
-  shadow: "rgba(41, 98, 255, 0.32)",
+  background: '#09182d',
+  border: 'rgba(255,255,255,0.08)',
+  text: '#f8fafc',
+  muted: '#b8c3d6',
+  primary: '#3f7cff',
+  primarySoft: '#5b8cff',
+  shadow: 'rgba(41, 98, 255, 0.32)',
 };
 
 export default function TrackScreen() {
   const insets = useSafeAreaInsets();
 
+  const handleStartDriving = () => {
+    router.push('/track-live');
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}> 
       <View style={styles.header}>
         <Text style={styles.title}>Live Tracking</Text>
 
         <View style={styles.headerActions}>
           <Pressable style={styles.headerIcon}>
-            <Ionicons
-              name="notifications-outline"
-              size={26}
-              color={COLORS.text}
-            />
+            <Ionicons name="notifications-outline" size={26} color={COLORS.text} />
           </Pressable>
-          <Pressable
-            style={styles.headerIcon}
-            onPress={() => router.push("/profile")}
-          >
+          <Pressable style={styles.headerIcon} onPress={() => router.push('/profile')}>
             <Ionicons name="person-outline" size={26} color={COLORS.text} />
           </Pressable>
         </View>
@@ -44,17 +41,15 @@ export default function TrackScreen() {
 
       <View style={styles.content}>
         <View style={styles.orbGlow} />
-        <Pressable style={styles.playCircle}>
+        <Pressable style={styles.playCircle} onPress={handleStartDriving}>
           <Ionicons name="play-outline" size={110} color={COLORS.text} />
         </Pressable>
 
         <Text style={styles.heading}>Ready to Drive</Text>
-        <Text style={styles.subtitle}>
-          Start tracking to monitor your driving
-        </Text>
+        <Text style={styles.subtitle}>Start tracking to monitor your driving</Text>
         <Text style={styles.subtitle}>performance in real-time</Text>
 
-        <Pressable style={styles.startButton}>
+        <Pressable style={styles.startButton} onPress={handleStartDriving}>
           <Text style={styles.startButtonText}>Start Driving</Text>
         </Pressable>
       </View>
@@ -72,26 +67,26 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 22,
     paddingBottom: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   title: {
     color: COLORS.text,
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
   headerIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   divider: {
     height: 1,
@@ -99,14 +94,14 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingBottom: 26,
   },
   orbGlow: {
-    position: "absolute",
-    top: "22%",
+    position: 'absolute',
+    top: '22%',
     width: 310,
     height: 310,
     borderRadius: 155,
@@ -119,8 +114,8 @@ const styles = StyleSheet.create({
     height: 230,
     borderRadius: 115,
     backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: COLORS.primarySoft,
     shadowOpacity: 0.35,
     shadowRadius: 24,
@@ -132,25 +127,25 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 34,
     lineHeight: 40,
-    fontWeight: "800",
-    textAlign: "center",
+    fontWeight: '800',
+    textAlign: 'center',
     marginBottom: 18,
   },
   subtitle: {
     color: COLORS.muted,
     fontSize: 17,
     lineHeight: 25,
-    textAlign: "center",
+    textAlign: 'center',
   },
   startButton: {
     marginTop: 42,
-    width: "100%",
+    width: '100%',
     maxWidth: 310,
     borderRadius: 22,
     backgroundColor: COLORS.primary,
     paddingVertical: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: COLORS.primarySoft,
     shadowOpacity: 0.28,
     shadowRadius: 18,
@@ -160,6 +155,6 @@ const styles = StyleSheet.create({
   startButtonText: {
     color: COLORS.text,
     fontSize: 24,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 });
