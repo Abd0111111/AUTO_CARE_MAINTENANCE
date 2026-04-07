@@ -25,7 +25,6 @@ export default function RootLayout() {
           <Stack.Screen name="profile" />
           <Stack.Screen name="trips" />
           <Stack.Screen name="track" />
-          <Stack.Screen name="track-live" />
           <Stack.Screen name="trip-details/[id]" />
           <Stack.Screen
             name="modal"
