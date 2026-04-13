@@ -1,0 +1,101 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { TripRepository } from 'src/DB';
+import { CreateTripDTO, UpdateTripDTO } from './dto/trip.dto';
+import { Types } from 'mongoose';
+
+@Injectable()
+export class TripService {
+  constructor(private readonly tripRepository: TripRepository) {}
+
+  async createTrip(data: CreateTripDTO, userId: string): Promise<string> {
+    const trip = await this.tripRepository.create({
+      data: [
+        {
+          ...data,
+          user: new Types.ObjectId(userId),
+        },
+      ],
+    });
+
+    if (!trip.length) {
+      throw new BadRequestException('fail to create trip');
+    }
+
+    return 'Done';
+  }
+
+  async getTrip(tripId: string) {
+    const trip = await this.tripRepository.findOne({
+      filter: { _id: new Types.ObjectId(tripId) },
+      options: {
+        populate: [{ path: 'driver', select: 'email username' }],
+      },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('trip not found');
+    }
+
+    return trip;
+  }
+
+  async getUserTrips(userId: string, page: number = 1, size: number = 5) {
+    return this.tripRepository.paginate({
+      filter: { user: new Types.ObjectId(userId) },
+      options: { sort: { createdAt: -1 } },
+      page,
+      size,
+    });
+  }
+
+  async updateTrip(tripId: string, data: UpdateTripDTO): Promise<string> {
+    const trip = await this.tripRepository.findOne({
+      filter: { _id: new Types.ObjectId(tripId) },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('trip not found');
+    }
+
+    for (const key of Object.keys(data)) {
+      if (data[key] !== undefined) {
+        trip[key] = data[key];
+      }
+    }
+
+    await trip.save();
+
+    return 'Done';
+  }
+
+  async confirmTrip(tripId: string): Promise<string> {
+    const trip = await this.tripRepository.findOne({
+      filter: { _id: new Types.ObjectId(tripId) },
+    });
+
+    if (!trip) {
+      throw new NotFoundException('trip not found');
+    }
+
+    trip.confirmed = true;
+    await trip.save();
+
+    return 'Done';
+  }
+
+  async deleteTrip(tripId: string): Promise<string> {
+    const deleted = await this.tripRepository.deleteOne({
+      filter: { _id: new Types.ObjectId(tripId) },
+    });
+
+    if (!deleted.deletedCount) {
+      throw new NotFoundException('trip not found');
+    }
+
+    return 'Done';
+  }
+}
