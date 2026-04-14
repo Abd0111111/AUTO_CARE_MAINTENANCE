@@ -44,8 +44,8 @@ export class User implements IUser {
     get: function (this: User) {
       return this.firstName + ' ' + this.lastName;
     },
-    set: function (vaule: string) {
-      const [firstName, lastName] = vaule.split(' ') || [];
+    set: function (value: string) {
+      const [firstName, lastName] = value.split(' ') || [];
       this.set({ firstName, lastName });
     },
   })
@@ -126,6 +126,12 @@ export class User implements IUser {
     type: Number,
   })
   drivingExperience: number;
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Vehicle',
+  })
+  vehicleId: Types.ObjectId;
 }
 
 export const userSchema = SchemaFactory.createForClass(User);

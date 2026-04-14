@@ -13,6 +13,8 @@ import { FuelModule } from './modules/fuel/fuel.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AlertModule } from './modules/alert/alert.module';
 import { StreakModule } from './modules/streak/streak.module';
+import { VehicleModule } from './modules/vehicle/vehicle.module';
+
 
 @Module({
   imports: [
@@ -29,7 +31,8 @@ import { StreakModule } from './modules/streak/streak.module';
     FuelModule,
     DashboardModule,
     AlertModule,
-    StreakModule
+    StreakModule,
+    VehicleModule
   ],
   controllers: [AppController],
   providers: [AppService],

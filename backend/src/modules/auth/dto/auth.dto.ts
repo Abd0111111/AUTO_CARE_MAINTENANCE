@@ -1,6 +1,9 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsNotEmpty,
+  IsNumber,
+  IsOptional,
   IsString,
   IsStrongPassword,
   Length,
@@ -51,6 +54,18 @@ export class SignupBodyDTO extends LoginBodyDTO {
   })
   @IsMatch<string>(['password'])
   confirmPassword: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^01[0125][0-9]{8}$/, {
+    message: 'Phone must be a valid Egyptian number',
+  })
+  phone: string;
+
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  drivingExperience: number;
 }
 
 export class GmailDTO {
@@ -58,3 +73,5 @@ export class GmailDTO {
   @IsNotEmpty()
   idToken: string;
 }
+
+

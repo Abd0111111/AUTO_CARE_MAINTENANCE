@@ -5,4 +5,5 @@ export * from './Trip.model';
 export * from './Maintenance.model';
 export * from './Fuel.model';
 export * from './streak.model';
+export * from './Vehicle.model';
 

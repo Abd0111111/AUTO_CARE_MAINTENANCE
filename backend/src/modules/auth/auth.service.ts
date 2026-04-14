@@ -35,7 +35,6 @@ export class AuthenticationService {
     private readonly secuirtyService: SecuirtyService,
     private readonly tokenService: TokenService,
   ) {}
-  
   private async createConfirmEmailOtp(
     userId: Types.ObjectId,
     userEmail: string,
@@ -79,7 +78,7 @@ export class AuthenticationService {
   }
 
   async signup(data: SignupBodyDTO): Promise<string> {
-    const { email, username, password } = data;
+    const { email, username, password, phone, drivingExperience } = data;
 
     const checkUserExist = await this.userRepository.findOne({
       filter: { email },
@@ -89,7 +88,7 @@ export class AuthenticationService {
     }
 
     const [user] = await this.userRepository.create({
-      data: [{ username, email, password }],
+      data: [{ username, email, password, phone, drivingExperience }],
     });
     if (!user) throw new BadRequestException('fail to signup');
 
@@ -114,7 +113,7 @@ export class AuthenticationService {
       );
     }
 
-    await this.createConfirmEmailOtp(user._id, user.email);;
+    await this.createConfirmEmailOtp(user._id, user.email);
 
     return 'Done';
   }
@@ -152,6 +151,9 @@ export class AuthenticationService {
         confirmedAt: { $exists: true },
         provider: providerEnum.SYSTEM,
       },
+      options: {
+        populate: [{ path: 'vehicleId' }],
+      },
     });
     if (!user) {
       throw new NotFoundException('fail to find matching account');
@@ -163,7 +165,10 @@ export class AuthenticationService {
       user as UserDocument,
     );
 
-    return credentials;
+    return {
+      ...credentials,
+      hasVehicle: !!user.vehicleId,
+    };
   }
   async sendForgotPassword(data: SendForgotPasswordDTO): Promise<string> {
     const { email } = data;
