@@ -117,6 +117,15 @@ export class User implements IUser {
   @Virtual()
   otp: OtpDocument[];
 
+  @Prop({
+    type: String,
+  })
+  phone: string;
+
+  @Prop({
+    type: Number,
+  })
+  drivingExperience: number;
 }
 
 export const userSchema = SchemaFactory.createForClass(User);
