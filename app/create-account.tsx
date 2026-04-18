@@ -36,6 +36,7 @@ export default function CreateAccountScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [drivingExperience, setDrivingExperience] = useState('');
   const [showDrivingModal, setShowDrivingModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,6 +63,11 @@ export default function CreateAccountScreen() {
     } else if (password.length < 6) {
       newErrors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
     }
+    if (!confirmPassword) {
+  newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
+} else if (password !== confirmPassword) {
+  newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
+}
     if (!drivingExperience) {
       newErrors.drivingExperience = 'الرجاء اختيار سنوات خبرة القيادة.';
     }
@@ -171,6 +177,17 @@ export default function CreateAccountScreen() {
               secureTextEntry
             />
             {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
+            <Text style={styles.label}>Confirm Password</Text>
+<TextInput
+  style={[styles.input, errors.confirmPassword && styles.inputError]}
+  placeholder="••••••••"
+  placeholderTextColor={C.textMuted}
+  value={confirmPassword}
+  onChangeText={(t) => { setConfirmPassword(t); clearError('confirmPassword'); }}
+  onFocus={() => clearError('confirmPassword')}
+  secureTextEntry
+/>
+{errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
 
             <Text style={styles.label}>Driving Experience (Years)</Text>
             <Pressable

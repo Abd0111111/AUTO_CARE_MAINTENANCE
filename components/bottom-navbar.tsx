@@ -2,14 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-type TabKey = 'home' | 'trips' | 'track' | 'car' | 'ai';
+type TabKey = 'home' | 'trips' | 'track' | 'community' | 'ai';
 
-const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap; route?: '/profile' | '/trips' | '/track' }[] = [
+const TABS: {
+  key: TabKey;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route?: '/profile' | '/trips' | '/track' | '/community' | '/ai-assistant';
+}[] = [
   { key: 'home', label: 'Home', icon: 'home-outline', route: '/profile' },
   { key: 'trips', label: 'Trips', icon: 'location-outline', route: '/trips' },
   { key: 'track', label: 'Track', icon: 'radio-outline', route: '/track' },
-  { key: 'car', label: 'Car', icon: 'car-outline' },
-  { key: 'ai', label: 'AI', icon: 'chatbox-ellipses-outline' },
+  { key: 'community', label: 'Community', icon: 'people-outline', route: '/community' },
+  { key: 'ai', label: 'AI', icon: 'chatbox-ellipses-outline', route: '/ai-assistant' },
 ];
 
 export function BottomNavbar({ activeTab }: { activeTab: TabKey }) {
@@ -17,15 +22,23 @@ export function BottomNavbar({ activeTab }: { activeTab: TabKey }) {
     <View style={styles.wrap}>
       {TABS.map((tab) => {
         const active = tab.key === activeTab;
+
         return (
           <Pressable
             key={tab.key}
             style={[styles.item, active && styles.itemActive]}
             onPress={() => {
               if (tab.route) router.push(tab.route);
-            }}>
-            <Ionicons name={tab.icon} size={18} color={active ? '#e6edf3' : '#8b949e'} />
-            <Text style={[styles.label, active && styles.labelActive]}>{tab.label}</Text>
+            }}
+          >
+            <Ionicons
+              name={tab.icon}
+              size={18}
+              color={active ? '#e6edf3' : '#8b949e'}
+            />
+            <Text style={[styles.label, active && styles.labelActive]}>
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}
