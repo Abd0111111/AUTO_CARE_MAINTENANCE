@@ -15,8 +15,6 @@ import {
 
 import type { Filter } from 'mongodb';
 
-
-
 export type Lean<T> = FlattenMaps<T>;
 export abstract class DatabaseRepository<
   TRawDocument,
@@ -108,6 +106,9 @@ export abstract class DatabaseRepository<
     const doc = this.model.find(filter || {}).select(select || '');
     if (options?.populate) {
       doc.populate(options.populate as PopulateOptions[]);
+    }
+    if (options?.sort) {
+      doc.sort(options.sort); 
     }
     if (options?.skip) {
       doc.skip(options.skip);

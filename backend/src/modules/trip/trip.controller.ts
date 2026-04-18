@@ -18,7 +18,13 @@ import { IResponse, successResponse } from 'src/common';
 import { Auth } from 'src/common/decorators';
 import { RoleEnum } from 'src/common/enums';
 
-@UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+@UsePipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+)
 @Controller('trips')
 export class TripController {
   constructor(private readonly tripService: TripService) {}
@@ -75,6 +81,30 @@ export class TripController {
   async confirmTrip(@Param('id') id: string): Promise<IResponse> {
     await this.tripService.confirmTrip(id);
     return successResponse();
+  }
+
+  @Auth([RoleEnum.user])
+  @Get('latest/me')
+  async getLatest(@Req() req): Promise<IResponse> {
+    const userId = req.credentials.user._id;
+    const trip = await this.tripService.getLatestTrip(userId);
+    return successResponse({ data: trip });
+  }
+
+  @Auth([RoleEnum.user])
+  @Get('weekly/me')
+  async getWeekly(@Req() req): Promise<IResponse> {
+    const userId = req.credentials.user._id;
+    const data = await this.tripService.getWeeklyReport(userId);
+    return successResponse({ data });
+  }
+
+  @Auth([RoleEnum.user])
+  @Get('latest/chatbot')
+  async getLatestForChatbot(@Req() req): Promise<IResponse> {
+    const userId = req.credentials.user._id;
+    const message = await this.tripService.getLatestTripFormatted(userId);
+    return successResponse({ data: { message } });
   }
 
   @Auth([RoleEnum.admin])

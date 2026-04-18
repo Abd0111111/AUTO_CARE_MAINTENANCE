@@ -53,10 +53,12 @@ export class DashboardService {
 
     const totalTrips = trips.length;
     const totalDistance = trips.reduce<number>(
-      (sum, trip) => sum + (trip.distance ?? 0),
+      (sum, trip) => sum + (trip.trip_summary?.distance_km ?? 0),
       0,
     );
-    const longTrips = trips.filter((t) => (t.distance ?? 0) > 100).length;
+    const longTrips = trips.filter(
+      (t) => (t.trip_summary?.distance_km ?? 0) > 100,
+    ).length;
 
     const totalLiters = fuels.reduce<number>(
       (sum, fuel) => sum + (fuel.amount ?? 0),

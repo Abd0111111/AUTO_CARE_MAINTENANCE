@@ -1,38 +1,62 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { TripRepository } from 'src/DB';
-import { CreateTripDTO, UpdateTripDTO } from './dto/trip.dto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { TripRepository, VehicleRepository } from 'src/DB';
+import { UpdateTripDTO } from './dto/trip.dto';
 import { Types } from 'mongoose';
+import { ITrip } from 'src/common';
+import { AiService } from './ai/ai.service';
 
 @Injectable()
 export class TripService {
-  constructor(private readonly tripRepository: TripRepository) {}
+  constructor(
+    private readonly tripRepository: TripRepository,
+    private readonly vehicleRepository: VehicleRepository,
+    private readonly aiService: AiService,
+  ) {}
 
-  async createTrip(data: CreateTripDTO, userId: string): Promise<string> {
-    const trip = await this.tripRepository.create({
-      data: [
-        {
-          ...data,
-          user: new Types.ObjectId(userId),
-        },
-      ],
+  formatForChatbot(trip: any): string {
+    return `
+🚗 Trip Summary:
+Distance: ${trip?.trip_summary?.distance_km ?? 0} km
+Avg Speed: ${trip?.trip_summary?.avg_speed ?? 0} km/h
+
+🧠 Driver Score: ${trip?.driving_behavior?.driver_score ?? 'N/A'}
+
+🔧 Vehicle Health: ${trip?.vehicle_health?.health_status ?? 'Unknown'}
+
+⛽ Fuel: ${trip?.fuel_efficiency?.efficiency_label ?? 'Unknown'}
+`;
+  }
+
+  async createTrip(rawData: any, userId: string) {
+    const vehicle = await this.vehicleRepository.findOne({
+      filter: { userId: new Types.ObjectId(userId) },
     });
 
-    if (!trip.length) {
-      throw new BadRequestException('fail to create trip');
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
     }
 
-    return 'Done';
+    const computedTrip = await this.aiService.buildTrip(rawData, vehicle);
+
+    const tripToSave = {
+      user: new Types.ObjectId(userId),
+
+      trip_id: rawData.trip_id,
+      date: rawData.date,
+
+      ...computedTrip, 
+    };
+
+    return this.tripRepository.create({
+      data: [tripToSave],
+    });
   }
 
   async getTrip(tripId: string) {
     const trip = await this.tripRepository.findOne({
       filter: { _id: new Types.ObjectId(tripId) },
       options: {
-        populate: [{ path: 'driver', select: 'email username' }],
+        populate: [{ path: 'user', select: 'email username' }],
       },
     });
 
@@ -97,5 +121,65 @@ export class TripService {
     }
 
     return 'Done';
+  }
+
+  async getLatestTrip(userId: string) {
+    const [trip] = await this.tripRepository.find({
+      filter: { user: new Types.ObjectId(userId) },
+      options: {
+        sort: { createdAt: -1 },
+        limit: 1,
+      },
+    });
+
+    if (!trip) throw new NotFoundException('No trips');
+
+    return trip;
+  }
+
+  async getLatestTripFormatted(userId: string) {
+    const trip = await this.getLatestTrip(userId);
+    return this.formatForChatbot(trip);
+  }
+
+  async getWeeklyReport(userId: string) {
+    const trips: ITrip[] = await this.tripRepository.find({
+      filter: { user: new Types.ObjectId(userId) },
+    });
+
+    if (!trips.length) {
+      return {
+        total_trips: 0,
+        total_distance: 0,
+        avg_driver_score: 0,
+        avg_fuel: 0,
+      };
+    }
+
+    const total_trips = trips.length;
+
+    const total_distance = trips.reduce(
+      (sum, t) => sum + (t.trip_summary?.distance_km || 0),
+      0,
+    );
+
+    const avg_driver_score =
+      trips.reduce(
+        (sum, t) => sum + (t.driving_behavior?.driver_score || 0),
+        0,
+      ) / total_trips;
+
+    const avg_fuel =
+      trips.reduce(
+        (sum, t) => sum + (t.fuel_efficiency?.actual_fuel_l_100km || 0),
+        0,
+      ) / total_trips;
+
+    return {
+      total_trips,
+      total_distance,
+      avg_driver_score,
+      avg_fuel,
+    };
   }
 }
