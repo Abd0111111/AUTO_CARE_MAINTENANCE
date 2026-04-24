@@ -190,7 +190,7 @@ export default function MaintenanceBaselineScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavbar activeTab="car" />
+      <BottomNavbar activeTab="community" />
 
       {/* Battery Year Modal */}
       <Modal visible={showBatteryModal} transparent animationType="slide">
