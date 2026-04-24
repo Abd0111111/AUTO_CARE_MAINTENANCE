@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -110,7 +111,7 @@ export default function ProfileScreen() {
                 <Text style={styles.badgeText}>1</Text>
               </View>
             </Pressable>
-            <Pressable style={styles.headerIconButton}>
+            <Pressable style={styles.headerIconButton} onPress={() => router.push('/account')}>
               <Ionicons name="person-outline" size={20} color={COLORS.text} />
             </Pressable>
           </View>

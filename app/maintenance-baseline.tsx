@@ -74,11 +74,11 @@ export default function MaintenanceBaselineScreen() {
       lastTireChange: lastTireChange.trim(),
       lastBatteryYear,
     });
-    router.push('/profile');
+    router.push('/account');
   };
 
   const handleSkip = () => {
-    router.push('/profile');
+    router.push('/account');
   };
 
   return (
@@ -100,7 +100,7 @@ export default function MaintenanceBaselineScreen() {
             Smart Car AI Assistant App
           </Text>
         </View>
-        <Pressable style={styles.viewChatButton} onPress={() => router.push('/profile')}>
+        <Pressable style={styles.viewChatButton} onPress={() => router.push('/account')}>
           <Ionicons name="person-circle-outline" size={22} color={C.text} />
         </Pressable>
       </View>

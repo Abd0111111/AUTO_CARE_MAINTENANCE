@@ -31,7 +31,7 @@ export default function TrackScreen() {
           <Pressable style={styles.headerIcon}>
             <Ionicons name="notifications-outline" size={26} color={COLORS.text} />
           </Pressable>
-          <Pressable style={styles.headerIcon} onPress={() => router.push('/profile')}>
+          <Pressable style={styles.headerIcon} onPress={() => router.push('/account')}>
             <Ionicons name="person-outline" size={26} color={COLORS.text} />
           </Pressable>
         </View>

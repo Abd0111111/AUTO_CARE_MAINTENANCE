@@ -173,7 +173,7 @@ export default function AIAssistantScreen() {
           <Pressable
             style={styles.headerIcon}
             hitSlop={10}
-            onPress={() => router.push("/profile")}
+            onPress={() => router.push("/account")}
           >
             <Ionicons name="person-outline" size={25} color={COLORS.text} />
           </Pressable>

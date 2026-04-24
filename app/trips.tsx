@@ -37,7 +37,7 @@ export default function TripsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Trip History</Text>
-        <Pressable style={styles.profileButton} onPress={() => router.push('/profile')}>
+        <Pressable style={styles.profileButton} onPress={() => router.push('/account')}>
           <Ionicons name="person-outline" size={20} color={COLORS.text} />
         </Pressable>
       </View>

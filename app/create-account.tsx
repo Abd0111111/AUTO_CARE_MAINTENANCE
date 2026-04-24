@@ -112,7 +112,7 @@ export default function CreateAccountScreen() {
             Smart Car AI Assistant App
           </Text>
         </View>
-        <Pressable style={styles.viewChatButton} onPress={() => router.push('/profile')}>
+        <Pressable style={styles.viewChatButton} onPress={() => router.push('/account')}>
           <Ionicons name="person-circle-outline" size={22} color={C.text} />
         </Pressable>
       </View>
