@@ -81,7 +81,10 @@ export default function CreateAccountScreen() {
       phone: trimmedPhone,
       drivingExperience,
     });
-    router.push('/vehicle-setup');
+    router.push({
+      pathname: '/verify-otp',
+      params: { email: trimmedEmail },
+    });
   };
 
   const clearError = (field: string) => {
@@ -112,7 +115,7 @@ export default function CreateAccountScreen() {
             Smart Car AI Assistant App
           </Text>
         </View>
-        <Pressable style={styles.viewChatButton} onPress={() => router.push('/account')}>
+        <Pressable style={styles.viewChatButton} onPress={() => router.push('/profile')}>
           <Ionicons name="person-circle-outline" size={22} color={C.text} />
         </Pressable>
       </View>

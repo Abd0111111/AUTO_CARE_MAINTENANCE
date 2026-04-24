@@ -20,10 +20,10 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="sign-in" />
           <Stack.Screen name="create-account" />
+          <Stack.Screen name="verify-otp" />
           <Stack.Screen name="vehicle-setup" />
           <Stack.Screen name="maintenance-baseline" />
           <Stack.Screen name="profile" />
-          <Stack.Screen name="account" />
           <Stack.Screen name="trips" />
           <Stack.Screen name="track" />
           <Stack.Screen name="track-live" />
