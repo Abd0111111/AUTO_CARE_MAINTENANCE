@@ -17,12 +17,13 @@ import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { useUserProfile } from '@/context/user-profile-context';
 import { createAccountStyles as styles } from '@/styles/create-account.styles';
+import { BASE_URL } from '@/constants/api';
 
 const DRIVING_OPTIONS = [
-  '0-2 years',
-  '3-6 years',
-  '7-10 years',
-  '10+ years',
+  { label: '0-2 years', value: 1 },
+  { label: '3-6 years', value: 4 },
+  { label: '7-10 years', value: 8 },
+  { label: '10+ years', value: 12 },
 ];
 
 function isValidEmail(email: string) {
@@ -37,43 +38,51 @@ export default function CreateAccountScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [drivingExperience, setDrivingExperience] = useState('');
+  const [drivingExperience, setDrivingExperience] = useState<number | null>(null);
   const [showDrivingModal, setShowDrivingModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleContinueToVehicleSetup = () => {
-    const trimmedName = fullName.trim();
-    const trimmedEmail = email.trim();
-    const trimmedPhone = phone.trim();
-    const newErrors: Record<string, string> = {};
+const handleContinueToVehicleSetup = async () => {
+  const trimmedName = fullName.trim();
+  const trimmedEmail = email.trim();
+  const trimmedPhone = phone.trim();
+  const newErrors: Record<string, string> = {};
 
-    if (!trimmedName) {
-      newErrors.fullName = 'الرجاء إدخال الاسم الكامل.';
-    }
-    if (!trimmedEmail) {
-      newErrors.email = 'الرجاء إدخال البريد الإلكتروني.';
-    } else if (!isValidEmail(trimmedEmail)) {
-      newErrors.email = 'البريد الإلكتروني غير صحيح.';
-    }
-    if (!trimmedPhone) {
-      newErrors.phone = 'الرجاء إدخال رقم الهاتف.';
-    }
-    if (!password) {
-      newErrors.password = 'الرجاء إدخال كلمة المرور.';
-    } else if (password.length < 6) {
-      newErrors.password = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
-    }
-    if (!confirmPassword) {
-  newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
-} else if (password !== confirmPassword) {
-  newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
-}
-    if (!drivingExperience) {
-      newErrors.drivingExperience = 'الرجاء اختيار سنوات خبرة القيادة.';
-    }
+  if (!trimmedName) newErrors.fullName = 'الرجاء إدخال الاسم الكامل.';
+  if (!trimmedEmail) newErrors.email = 'الرجاء إدخال البريد الإلكتروني.';
+  if (!trimmedPhone) newErrors.phone = 'الرجاء إدخال رقم الهاتف.';
+  if (!password) newErrors.password = 'الرجاء إدخال كلمة المرور.';
+  if (!confirmPassword) newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
+  if (password !== confirmPassword)
+    newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
+  if (!drivingExperience === null)
+    newErrors.drivingExperience = 'الرجاء اختيار سنوات خبرة القيادة.';
 
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+  setErrors(newErrors);
+  if (Object.keys(newErrors).length > 0) return;
+
+  try {
+    const res = await fetch(`${BASE_URL}/auth/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        password,
+        confirmPassword,
+        drivingExperience: drivingExperience ?? 0,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.message || 'Signup failed');
+      return;
+    }
 
     updateProfile({
       fullName: trimmedName,
@@ -81,11 +90,16 @@ export default function CreateAccountScreen() {
       phone: trimmedPhone,
       drivingExperience,
     });
+
     router.push({
       pathname: '/verify-otp',
       params: { email: trimmedEmail },
     });
-  };
+  } catch (err) {
+    console.log(err);
+    alert('Network error');
+  }
+};
 
   const clearError = (field: string) => {
     setErrors((prev) => {
@@ -196,9 +210,9 @@ export default function CreateAccountScreen() {
             <Pressable
               style={[styles.selectBox, errors.drivingExperience && styles.selectBoxError]}
               onPress={() => { setShowDrivingModal(true); clearError('drivingExperience'); }}>
-              <Text style={[styles.inputPlaceholder, drivingExperience && { color: C.text }]}>
-                {drivingExperience || 'Select...'}
-              </Text>
+<Text style={[styles.inputPlaceholder, drivingExperience !== null && { color: C.text }]}>
+  {drivingExperience !== null ? `${drivingExperience} years` : 'Select...'}
+</Text>
               <Ionicons name="chevron-down" size={20} color={C.textMuted} />
             </Pressable>
             {errors.drivingExperience ? (
@@ -225,17 +239,20 @@ export default function CreateAccountScreen() {
       <Modal visible={showDrivingModal} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setShowDrivingModal(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            {DRIVING_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt}
-                style={styles.modalOption}
-                onPress={() => {
-                  setDrivingExperience(opt);
-                  setShowDrivingModal(false);
-                }}>
-                <Text style={styles.modalOptionText}>{opt}</Text>
-              </Pressable>
-            ))}
+{DRIVING_OPTIONS.map((option) => (
+  <Pressable
+    key={option.value}
+    style={styles.modalOption}
+    onPress={() => {
+      setDrivingExperience(option.value);
+      setShowDrivingModal(false);
+    }}
+  >
+    <Text style={styles.modalOptionText}>
+      {option.label}
+    </Text>
+  </Pressable>
+))}
           </Pressable>
         </Pressable>
       </Modal>

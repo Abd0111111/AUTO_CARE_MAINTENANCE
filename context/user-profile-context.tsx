@@ -4,7 +4,7 @@ export type UserProfileData = {
   fullName: string;
   email: string;
   phone: string;
-  drivingExperience: string;
+  drivingExperience: number | null;
   vehicleBrand: string;
   modelName: string;
   manufacturingYear: string;
@@ -21,7 +21,7 @@ const INITIAL_PROFILE: UserProfileData = {
   fullName: '',
   email: '',
   phone: '',
-  drivingExperience: '',
+  drivingExperience: null,
   vehicleBrand: '',
   modelName: '',
   manufacturingYear: '',

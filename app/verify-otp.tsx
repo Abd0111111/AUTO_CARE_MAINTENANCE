@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Alert } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BASE_URL } from '@/constants/api';
+
 
 const COLORS = {
   background: "#09182d",
@@ -37,19 +39,42 @@ export default function VerifyOtpScreen() {
     }
   };
 
-const handleVerify = () => {
+
+  const handleVerify = async () => {
   const otpCode = otp.join("");
 
-  if (otpCode.length !== 6) {
-    Alert.alert("Error", "Enter 6 digits first");
-    return;
+  console.log("OTP:", otpCode);
+  console.log("EMAIL:", email);
+
+  try {
+    const res = await fetch(`${BASE_URL}/auth/confirm-Email`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email,
+        otp: otpCode,
+      }),
+    });
+
+    const data = await res.json();
+    
+    console.log("STATUS:", res.status);
+    console.log("RESPONSE:", data);
+
+    if (!res.ok) {
+      Alert.alert("Error", data.message || "Invalid OTP");
+      return;
+    }
+
+    Alert.alert("Success", "Email verified successfully");
+    router.replace("/vehicle-setup");
+
+  } catch (err) {
+    console.log("NETWORK ERROR:", err);
+    Alert.alert("Error", "Network error");
   }
-
-  console.log("OTP Entered:", otpCode);
-
-  Alert.alert("Success", "OTP Verified (TEST MODE)");
-
-  router.replace("/vehicle-setup");
 };
 
   return (
