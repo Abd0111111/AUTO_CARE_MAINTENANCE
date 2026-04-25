@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { useUserProfile } from '@/context/user-profile-context';
 import { BottomNavbar } from '@/components/bottom-navbar';
 
@@ -16,15 +17,18 @@ const COLORS = {
   green: '#22c55e',
 };
 
-function toInitials(fullName: string) {
-  const name = fullName.trim();
+function toInitials(fullName?: string | null) {
+  const name = (fullName ?? '').trim();
   if (!name) return 'U';
   const parts = name.split(/\s+/);
   return `${parts[0][0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase();
 }
-
-function valueOrFallback(value: string, fallback = 'Not set') {
-  return value?.trim() ? value : fallback;
+function valueOrFallback(
+  value: string | number | null | undefined,
+  fallback = 'Not set'
+) {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+  return text ? text : fallback;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -38,8 +42,25 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
-  const { profile } = useUserProfile();
+  const { profile, updateProfile } = useUserProfile();
   const vehicleName = [profile.vehicleBrand, profile.modelName].filter(Boolean).join(' ');
+
+  useEffect(() => {
+  const loadSavedProfile = async () => {
+    try {
+      const savedVehicleProfile = await AsyncStorage.getItem('vehicle_profile');
+
+      if (savedVehicleProfile) {
+        const parsedProfile = JSON.parse(savedVehicleProfile);
+        updateProfile(parsedProfile);
+      }
+    } catch (error) {
+      console.log('LOAD PROFILE ERROR:', error);
+    }
+  };
+
+  loadSavedProfile();
+}, []);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

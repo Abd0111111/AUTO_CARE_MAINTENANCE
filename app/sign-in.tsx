@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { useUserProfile } from '@/context/user-profile-context';
 import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { signInStyles as styles } from '@/styles/sign-in.styles';
@@ -33,6 +33,7 @@ export default function SignInScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { updateProfile } = useUserProfile();
 
   const handleSignIn = async () => {
     const trimmedEmail = email.trim();
@@ -83,12 +84,65 @@ export default function SignInScreen() {
         return;
       }
 
-      await AsyncStorage.setItem('access_token', accessToken);
-      if (refreshToken) {
-        await AsyncStorage.setItem('refresh_token', refreshToken);
-      }
+await AsyncStorage.setItem('access_token', accessToken);
 
-      router.replace('/profile');
+if (refreshToken) {
+  await AsyncStorage.setItem('refresh_token', refreshToken);
+}
+
+const savedUserProfile = await AsyncStorage.getItem('user_profile');
+const oldUserProfile = savedUserProfile ? JSON.parse(savedUserProfile) : {};
+
+const user =
+  data?.data?.user ||
+  data?.user ||
+  data?.data?.account ||
+  data?.account ||
+  data?.data?.profile ||
+  data?.profile ||
+  {};
+
+const userProfile = {
+  fullName:
+    user.fullName ||
+    user.name ||
+    user.username ||
+    oldUserProfile.fullName ||
+    '',
+
+  email:
+    user.email ||
+    oldUserProfile.email ||
+    trimmedEmail,
+
+  phone:
+    user.phone ||
+    user.phoneNumber ||
+    oldUserProfile.phone ||
+    '',
+
+  drivingExperience:
+    user.drivingExperience ??
+    oldUserProfile.drivingExperience ??
+    null,
+};
+
+updateProfile(userProfile);
+
+await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
+
+const needsVehicleSetup = await AsyncStorage.getItem('needs_vehicle_setup');
+const savedVehicleProfile = await AsyncStorage.getItem('vehicle_profile');
+
+console.log('NEEDS VEHICLE SETUP:', needsVehicleSetup);
+console.log('SAVED VEHICLE PROFILE:', savedVehicleProfile);
+
+if (needsVehicleSetup === 'true' || !savedVehicleProfile) {
+  router.replace('/vehicle-setup');
+} else {
+  router.replace('/profile');
+}
+
     } catch (err) {
       console.log('LOGIN ERROR:', err);
       setErrors({ email: 'حدث خطأ في الاتصال بالسيرفر.' });

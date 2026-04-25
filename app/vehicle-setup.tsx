@@ -12,11 +12,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { useUserProfile } from '@/context/user-profile-context';
 import { vehicleSetupStyles as styles } from '@/styles/vehicle-setup.styles';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FUEL_TYPE_OPTIONS = ['Gasoline 92', 'Gasoline 95', 'Diesel'];
 
@@ -37,7 +37,7 @@ export default function VehicleSetupScreen() {
   const [showTransmissionModal, setShowTransmissionModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const newErrors: Record<string, string> = {};
 
     if (!vehicleBrand.trim()) newErrors.vehicleBrand = 'الرجاء إدخال ماركة المركبة.';
@@ -57,18 +57,24 @@ export default function VehicleSetupScreen() {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    updateProfile({
-      vehicleBrand: vehicleBrand.trim(),
-      modelName: modelName.trim(),
-      manufacturingYear: manufacturingYear.trim(),
-      engineCapacity: engineCapacity.trim(),
-      odometerMileage: odometerMileage.trim(),
-      fuelType,
-      transmission,
-    });
-    router.push('/maintenance-baseline');
+    const vehicleProfile = {
+  vehicleBrand: vehicleBrand.trim(),
+  modelName: modelName.trim(),
+  manufacturingYear: manufacturingYear.trim(),
+  engineCapacity: engineCapacity.trim(),
+  odometerMileage: odometerMileage.trim(),
+  fuelType,
+  transmission,
+};
 
-    // TODO: save and navigate to next screen
+updateProfile(vehicleProfile);
+
+await AsyncStorage.setItem('vehicle_profile', JSON.stringify(vehicleProfile));
+
+await AsyncStorage.removeItem('needs_vehicle_setup');
+
+router.replace('/profile');
+    
   };
 
   const clearError = (field: string) => {

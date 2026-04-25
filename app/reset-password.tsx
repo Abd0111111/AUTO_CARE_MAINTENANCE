@@ -37,55 +37,69 @@ export default function ResetPasswordScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleResetPassword = async () => {
-    const newErrors: Record<string, string> = {};
+const handleResetPassword = async () => {
+  const newErrors: Record<string, string> = {};
 
-    if (!email || !otp) {
-      newErrors.password = 'بيانات التحقق ناقصة. ارجع واطلب OTP مرة أخرى.';
+  if (!email || !otp) {
+    newErrors.password = 'بيانات التحقق ناقصة. ارجع واطلب OTP مرة أخرى.';
+  }
+
+  if (!password) {
+    newErrors.password = 'الرجاء إدخال كلمة المرور الجديدة.';
+  } else if (password.length < 6) {
+    newErrors.password = 'كلمة المرور يجب ألا تقل عن 6 حروف.';
+  }
+
+  if (!confirmPassword) {
+    newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
+  } else if (password !== confirmPassword) {
+    newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
+  }
+
+  setErrors(newErrors);
+  if (Object.keys(newErrors).length > 0) return;
+
+  try {
+    setIsSubmitting(true);
+
+    const res = await fetch(`${BASE_URL}/auth/reset-forgot-password`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        otp,
+        password,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.log('RESET PASSWORD ERROR:', data);
+
+      const message =
+        data?.message ||
+        'رمز التحقق غير صحيح أو انتهت صلاحيته.';
+
+      setErrors({ password: message });
+      return;
     }
 
-    if (!password) {
-      newErrors.password = 'الرجاء إدخال كلمة المرور الجديدة.';
-    } else if (password.length < 6) {
-      newErrors.password = 'كلمة المرور يجب ألا تقل عن 6 حروف.';
-    }
+    console.log('RESET SUCCESS:', data);
 
-    if (!confirmPassword) {
-      newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
-    } else if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
-    }
+    Alert.alert('Done', 'تم تغيير كلمة المرور بنجاح.');
 
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length > 0) return;
+    router.replace('/sign-in');
 
-    try {
-      setIsSubmitting(true);
-
-      const res = await fetch(`${BASE_URL}/auth/reset-forgot-password`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          otp,
-          password,
-        }),
-      });
-
-      if (!res.ok) {
-        setErrors({ password: 'رمز التحقق غير صحيح أو انتهت صلاحيته.' });
-        return;
-      }
-
-      Alert.alert('Done', 'تم تغيير كلمة المرور بنجاح.');
-      router.replace('/sign-in');
-    } catch (err) {
-      console.log('RESET PASSWORD ERROR:', err);
-      setErrors({ password: 'حدث خطأ في الاتصال بالسيرفر.' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  } catch (err) {
+    console.log('RESET PASSWORD ERROR:', err);
+    setErrors({ password: 'حدث خطأ في الاتصال بالسيرفر.' });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const clearError = (field: string) => {
     setErrors((prev) => {

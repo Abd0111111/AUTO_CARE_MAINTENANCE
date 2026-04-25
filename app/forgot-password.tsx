@@ -35,45 +35,64 @@ export default function ForgotPasswordScreen() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSendOtp = async () => {
-    const trimmedEmail = email.trim();
+const handleSendOtp = async () => {
+  const trimmedEmail = email.trim();
 
-    if (!trimmedEmail) {
-      setError('الرجاء إدخال البريد الإلكتروني.');
+  if (!trimmedEmail) {
+    setError('الرجاء إدخال البريد الإلكتروني.');
+    return;
+  }
+
+  if (!isValidEmail(trimmedEmail)) {
+    setError('البريد الإلكتروني غير صحيح.');
+    return;
+  }
+
+  try {
+    setIsSubmitting(true);
+    setError('');
+
+    const res = await fetch(`${BASE_URL}/auth/send-forgot-password`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: trimmedEmail,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.log('SEND OTP ERROR:', data);
+
+      const message =
+        data?.message ||
+        'البريد الإلكتروني غير صحيح أو غير مسجل.';
+
+      setError(message);
       return;
     }
 
-    if (!isValidEmail(trimmedEmail)) {
-      setError('البريد الإلكتروني غير صحيح.');
-      return;
-    }
+    // ✅ نجاح
+    console.log('OTP SENT SUCCESS:', data);
 
-    try {
-      setIsSubmitting(true);
-      setError('');
+    router.push({
+      pathname: '/verify-otp',
+      params: {
+        email: trimmedEmail,
+        mode: 'forgot-password',
+      },
+    });
 
-      const res = await fetch(`${BASE_URL}/auth/send-forgot-password`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-
-      if (!res.ok) {
-        setError('البريد الإلكتروني غير صحيح أو غير مسجل.');
-        return;
-      }
-
-      router.push({
-        pathname: '/verify-otp',
-        params: { email: trimmedEmail, mode: 'forgot-password' },
-      });
-    } catch (err) {
-      console.log('FORGOT PASSWORD ERROR:', err);
-      setError('حدث خطأ في الاتصال بالسيرفر.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  } catch (err) {
+    console.log('FORGOT PASSWORD ERROR:', err);
+    setError('حدث خطأ في الاتصال بالسيرفر.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

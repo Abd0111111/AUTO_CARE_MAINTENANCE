@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { useUserProfile } from '@/context/user-profile-context';
@@ -81,17 +81,24 @@ export default function CreateAccountScreen() {
         return;
       }
 
-      updateProfile({
-        fullName: trimmedName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        drivingExperience: null,
-      });
+const userProfile = {
+  fullName: trimmedName,
+  email: trimmedEmail,
+  phone: trimmedPhone,
+  drivingExperience: null,
+};
 
-      router.push({
-        pathname: '/verify-otp',
-        params: { email: trimmedEmail },
-      });
+updateProfile(userProfile);
+
+await AsyncStorage.setItem('user_profile', JSON.stringify(userProfile));
+await AsyncStorage.setItem('needs_vehicle_setup', 'true');
+
+router.push({
+  pathname: '/verify-otp',
+  params: { email: trimmedEmail },
+});
+
+
     } catch (err) {
       console.log('SIGNUP ERROR:', err);
       setErrors({ email: 'حدث خطأ في الاتصال بالسيرفر.' });
