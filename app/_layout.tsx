@@ -23,6 +23,8 @@ export default function RootLayout() {
           <Stack.Screen name="verify-otp" />
           <Stack.Screen name="vehicle-setup" />
           <Stack.Screen name="maintenance-baseline" />
+          <Stack.Screen name="forgot-password" />
+          <Stack.Screen name="reset-password" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="trips" />
           <Stack.Screen name="track" />

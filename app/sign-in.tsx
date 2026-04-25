@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
@@ -15,9 +16,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { signInStyles as styles } from '@/styles/sign-in.styles';
+import { BASE_URL } from '@/constants/api';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function getCredentials(data: any) {
+  return data?.data?.credentials ?? data?.credentials ?? data?.data ?? data;
 }
 
 export default function SignInScreen() {
@@ -26,8 +32,9 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const trimmedEmail = email.trim();
     const newErrors: Record<string, string> = {};
 
@@ -43,7 +50,51 @@ export default function SignInScreen() {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    // TODO: استدعاء واجهة تسجيل الدخول ثم الانتقال للشاشة التالية
+    try {
+      setIsSubmitting(true);
+
+      const res = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          password,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErrors({
+          email: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+          password: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+        });
+        return;
+      }
+
+      const credentials = getCredentials(data);
+      const accessToken = credentials?.access_token;
+      const refreshToken = credentials?.refresh_token;
+
+      if (!accessToken) {
+        setErrors({ email: 'لم يتم استلام التوكن من السيرفر.' });
+        return;
+      }
+
+      await AsyncStorage.setItem('access_token', accessToken);
+      if (refreshToken) {
+        await AsyncStorage.setItem('refresh_token', refreshToken);
+      }
+
+      router.replace('/profile');
+    } catch (err) {
+      console.log('LOGIN ERROR:', err);
+      setErrors({ email: 'حدث خطأ في الاتصال بالسيرفر.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const clearError = (field: string) => {
@@ -59,10 +110,7 @@ export default function SignInScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color={C.text} />
-          <Text style={styles.backLabel}>Back</Text>
-        </Pressable>
+        <View style={styles.backButton} />
         <View style={styles.headerCenter}>
           <View style={styles.logoRow}>
             <View style={styles.logoIcon}>
@@ -126,14 +174,17 @@ export default function SignInScreen() {
                 </View>
                 <Text style={styles.rememberText}>Remember me</Text>
               </Pressable>
-              <Pressable hitSlop={8}>
+              <Pressable hitSlop={8} onPress={() => router.push('/forgot-password')}>
                 <Text style={styles.forgotLink}>Forgot Password?</Text>
               </Pressable>
             </View>
           </View>
 
-          <Pressable style={styles.signInButton} onPress={handleSignIn}>
-            <Text style={styles.signInButtonText}>Sign In</Text>
+          <Pressable
+            style={styles.signInButton}
+            onPress={handleSignIn}
+            disabled={isSubmitting}>
+            <Text style={styles.signInButtonText}>{isSubmitting ? 'Signing In...' : 'Sign In'}</Text>
           </Pressable>
 
           <View style={styles.footer}>

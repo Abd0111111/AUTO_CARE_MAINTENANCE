@@ -3,7 +3,6 @@ import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,13 +18,6 @@ import { useUserProfile } from '@/context/user-profile-context';
 import { createAccountStyles as styles } from '@/styles/create-account.styles';
 import { BASE_URL } from '@/constants/api';
 
-const DRIVING_OPTIONS = [
-  { label: '0-2 years', value: 1 },
-  { label: '3-6 years', value: 4 },
-  { label: '7-10 years', value: 8 },
-  { label: '10+ years', value: 12 },
-];
-
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
@@ -38,68 +30,75 @@ export default function CreateAccountScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [drivingExperience, setDrivingExperience] = useState<number | null>(null);
-  const [showDrivingModal, setShowDrivingModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-const handleContinueToVehicleSetup = async () => {
-  const trimmedName = fullName.trim();
-  const trimmedEmail = email.trim();
-  const trimmedPhone = phone.trim();
-  const newErrors: Record<string, string> = {};
+  const handleContinueToVehicleSetup = async () => {
+    const trimmedName = fullName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+    const newErrors: Record<string, string> = {};
 
-  if (!trimmedName) newErrors.fullName = 'الرجاء إدخال الاسم الكامل.';
-  if (!trimmedEmail) newErrors.email = 'الرجاء إدخال البريد الإلكتروني.';
-  if (!trimmedPhone) newErrors.phone = 'الرجاء إدخال رقم الهاتف.';
-  if (!password) newErrors.password = 'الرجاء إدخال كلمة المرور.';
-  if (!confirmPassword) newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
-  if (password !== confirmPassword)
-    newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
-  if (!drivingExperience === null)
-    newErrors.drivingExperience = 'الرجاء اختيار سنوات خبرة القيادة.';
-
-  setErrors(newErrors);
-  if (Object.keys(newErrors).length > 0) return;
-
-  try {
-    const res = await fetch(`${BASE_URL}/auth/signup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: trimmedName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        password,
-        confirmPassword,
-        drivingExperience: drivingExperience ?? 0,
-      }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      alert(data.message || 'Signup failed');
-      return;
+    if (!trimmedName) newErrors.fullName = 'الرجاء إدخال الاسم الكامل.';
+    if (!trimmedEmail) {
+      newErrors.email = 'الرجاء إدخال البريد الإلكتروني.';
+    } else if (!isValidEmail(trimmedEmail)) {
+      newErrors.email = 'البريد الإلكتروني غير صحيح.';
+    }
+    if (!trimmedPhone) newErrors.phone = 'الرجاء إدخال رقم الهاتف.';
+    if (!password) newErrors.password = 'الرجاء إدخال كلمة المرور.';
+    if (!confirmPassword) newErrors.confirmPassword = 'الرجاء تأكيد كلمة المرور.';
+    if (password && confirmPassword && password !== confirmPassword) {
+      newErrors.confirmPassword = 'كلمتا المرور غير متطابقتين.';
     }
 
-    updateProfile({
-      fullName: trimmedName,
-      email: trimmedEmail,
-      phone: trimmedPhone,
-      drivingExperience,
-    });
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
 
-    router.push({
-      pathname: '/verify-otp',
-      params: { email: trimmedEmail },
-    });
-  } catch (err) {
-    console.log(err);
-    alert('Network error');
-  }
-};
+    try {
+      setIsSubmitting(true);
+
+      const res = await fetch(`${BASE_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: trimmedName,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          password,
+          confirmPassword,
+          drivingExperience: 0,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const message = Array.isArray(data.message) ? data.message.join('\n') : data.message;
+        setErrors({ email: message || 'فشل إنشاء الحساب.' });
+        return;
+      }
+
+      updateProfile({
+        fullName: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        drivingExperience: null,
+      });
+
+      router.push({
+        pathname: '/verify-otp',
+        params: { email: trimmedEmail },
+      });
+    } catch (err) {
+      console.log('SIGNUP ERROR:', err);
+      setErrors({ email: 'حدث خطأ في الاتصال بالسيرفر.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const clearError = (field: string) => {
     setErrors((prev) => {
@@ -129,9 +128,7 @@ const handleContinueToVehicleSetup = async () => {
             Smart Car AI Assistant App
           </Text>
         </View>
-        <Pressable style={styles.viewChatButton} onPress={() => router.push('/profile')}>
-          <Ionicons name="person-circle-outline" size={22} color={C.text} />
-        </Pressable>
+        <View style={styles.backButton} />
       </View>
 
       <KeyboardAvoidingView
@@ -174,7 +171,7 @@ const handleContinueToVehicleSetup = async () => {
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={[styles.input, errors.phone && styles.inputError]}
-              placeholder="+1 (555) 123-4567"
+              placeholder="01012345678"
               placeholderTextColor={C.textMuted}
               value={phone}
               onChangeText={(t) => { setPhone(t); clearError('phone'); }}
@@ -194,34 +191,25 @@ const handleContinueToVehicleSetup = async () => {
               secureTextEntry
             />
             {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-            <Text style={styles.label}>Confirm Password</Text>
-<TextInput
-  style={[styles.input, errors.confirmPassword && styles.inputError]}
-  placeholder="••••••••"
-  placeholderTextColor={C.textMuted}
-  value={confirmPassword}
-  onChangeText={(t) => { setConfirmPassword(t); clearError('confirmPassword'); }}
-  onFocus={() => clearError('confirmPassword')}
-  secureTextEntry
-/>
-{errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
 
-            <Text style={styles.label}>Driving Experience (Years)</Text>
-            <Pressable
-              style={[styles.selectBox, errors.drivingExperience && styles.selectBoxError]}
-              onPress={() => { setShowDrivingModal(true); clearError('drivingExperience'); }}>
-<Text style={[styles.inputPlaceholder, drivingExperience !== null && { color: C.text }]}>
-  {drivingExperience !== null ? `${drivingExperience} years` : 'Select...'}
-</Text>
-              <Ionicons name="chevron-down" size={20} color={C.textMuted} />
-            </Pressable>
-            {errors.drivingExperience ? (
-              <Text style={styles.errorText}>{errors.drivingExperience}</Text>
-            ) : null}
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={[styles.input, errors.confirmPassword && styles.inputError]}
+              placeholder="••••••••"
+              placeholderTextColor={C.textMuted}
+              value={confirmPassword}
+              onChangeText={(t) => { setConfirmPassword(t); clearError('confirmPassword'); }}
+              onFocus={() => clearError('confirmPassword')}
+              secureTextEntry
+            />
+            {errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
           </View>
 
-          <Pressable style={styles.continueButton} onPress={handleContinueToVehicleSetup}>
-            <Text style={styles.continueText}>Continue to Vehicle Setup</Text>
+          <Pressable
+            style={styles.continueButton}
+            onPress={handleContinueToVehicleSetup}
+            disabled={isSubmitting}>
+            <Text style={styles.continueText}>{isSubmitting ? 'Creating Account...' : 'Continue to Verify OTP'}</Text>
           </Pressable>
 
           <View style={styles.footer}>
@@ -235,27 +223,6 @@ const handleContinueToVehicleSetup = async () => {
         </ScrollView>
       </KeyboardAvoidingView>
       <BottomNavbar activeTab="home" />
-
-      <Modal visible={showDrivingModal} transparent animationType="slide">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowDrivingModal(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-{DRIVING_OPTIONS.map((option) => (
-  <Pressable
-    key={option.value}
-    style={styles.modalOption}
-    onPress={() => {
-      setDrivingExperience(option.value);
-      setShowDrivingModal(false);
-    }}
-  >
-    <Text style={styles.modalOptionText}>
-      {option.label}
-    </Text>
-  </Pressable>
-))}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
