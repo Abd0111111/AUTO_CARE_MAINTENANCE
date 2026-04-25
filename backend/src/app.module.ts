@@ -14,6 +14,9 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AlertModule } from './modules/alert/alert.module';
 import { StreakModule } from './modules/streak/streak.module';
 import { VehicleModule } from './modules/vehicle/vehicle.module';
+import { PostModule } from './modules/post/post.module';
+import { CommentModule } from './modules/comment/comment.module';
+import { FollowModule } from './modules/follow/follow.module';
 
 
 @Module({
@@ -32,7 +35,10 @@ import { VehicleModule } from './modules/vehicle/vehicle.module';
     DashboardModule,
     AlertModule,
     StreakModule,
-    VehicleModule
+    VehicleModule,
+    PostModule,
+    CommentModule,
+    FollowModule
   ],
   controllers: [AppController],
   providers: [AppService],

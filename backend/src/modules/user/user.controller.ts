@@ -1,28 +1,38 @@
-import {
-  Controller,
-  Get,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import { Auth, RoleEnum, successResponse } from 'src/common';
 import { UserService } from './user.service';
-import {
-  Auth,
-  IResponse,
-  RoleEnum,
-  successResponse,
-  User,
-} from 'src/common';
-import type { UserDocument } from 'src/DB';
-import { profileResponse } from './entities';
+
 
 @Controller('user')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Auth([RoleEnum.user, RoleEnum.admin, RoleEnum.superAdmin])
-  @Get()
-  async profile(
-    @User() user: UserDocument,
-  ): Promise<IResponse<profileResponse>> {
-    const profile = await this.userService.profile(user);
-    return successResponse<profileResponse>({ data: { profile } });
+  @Auth([RoleEnum.user])
+  @Get(':userId')
+  async getProfile(
+    @Param('userId') userId: string,
+    @Req() req,
+  ) {
+    const viewerId = req.credentials.user._id;
+
+    const data = await this.userService.getProfile(userId, viewerId);
+
+    return successResponse({ data });
+  }
+
+  @Auth([RoleEnum.user])
+  @Get(':userId/posts')
+  async getUserPosts(
+    @Param('userId') userId: string,
+    @Query('page') page: number,
+    @Query('size') size: number,
+  ) {
+    const data = await this.userService.getUserPosts(
+      userId,
+      page,
+      size,
+    );
+
+    return successResponse({ data });
   }
 }

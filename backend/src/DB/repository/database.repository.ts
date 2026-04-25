@@ -108,7 +108,7 @@ export abstract class DatabaseRepository<
       doc.populate(options.populate as PopulateOptions[]);
     }
     if (options?.sort) {
-      doc.sort(options.sort); 
+      doc.sort(options.sort);
     }
     if (options?.skip) {
       doc.skip(options.skip);
@@ -235,5 +235,13 @@ export abstract class DatabaseRepository<
       { ...update, $inc: { __v: 1 } },
       options,
     );
+  }
+
+  async count({
+    filter = {},
+  }: {
+    filter?: Filter<TRawDocument>;
+  }): Promise<number> {
+    return this.model.countDocuments(filter);
   }
 }
