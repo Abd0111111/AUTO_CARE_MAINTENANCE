@@ -284,4 +284,12 @@ export class AuthenticationService {
 
     return this.tokenService.createLoginCredentials(user as UserDocument);
   }
+  async logout(userId: Types.ObjectId): Promise<string> {
+    await this.userRepository.updateOne({
+      filter: { _id: userId },
+      update: { refreshToken: null },
+    });
+
+    return 'Done';
+  }
 }

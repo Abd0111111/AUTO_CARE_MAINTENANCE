@@ -4,6 +4,9 @@ import {
   HttpCode,
   Patch,
   Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -20,6 +23,7 @@ import {
 } from './dto/auth.dto';
 import { LoginResponse } from './entities';
 import { IResponse, successResponse } from 'src/common';
+import { AuthenticationGuard } from 'src/common/guards/authentication/authentication.guard';
 
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
 @Controller('auth')
@@ -91,5 +95,13 @@ export class AuthenticationController {
   ): Promise<IResponse<LoginResponse>> {
     const credentials = await this.authenticationService.loginWithGmail(body);
     return successResponse<LoginResponse>({ data: { credentials } });
+  }
+
+  @Post('logout')
+  @UseGuards(AuthenticationGuard)
+  async logout(@Req() req): Promise<IResponse> {
+    const userId = req.credentials.user._id;
+    await this.authenticationService.logout(userId);
+    return successResponse();
   }
 }
