@@ -14,6 +14,7 @@ export const signInStyles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
+  
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 8,

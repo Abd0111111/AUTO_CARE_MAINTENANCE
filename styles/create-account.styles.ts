@@ -82,6 +82,7 @@ export const createAccountStyles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  
   title: {
     color: C.text,
     fontSize: 28,

@@ -18,4 +18,5 @@ export function useThemeColor(
   } else {
     return Colors[theme][colorName];
   }
+  
 }

@@ -18,6 +18,7 @@ export const vehicleSetupStyles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 8,
   },
+  
   header: {
     flexDirection: 'row',
     alignItems: 'center',
