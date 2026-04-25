@@ -110,4 +110,30 @@ export class CommentService {
 
     return comment;
   }
+
+  async deleteComment(commentId: string, user: any) {
+    const comment = await this.commentRepository.findOne({
+      filter: {
+        _id: new Types.ObjectId(commentId),
+        freezedAt: { $exists: false },
+        $or: [{ createdBy: user._id }, ...(user.role === 'admin' ? [{}] : [])],
+      },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('comment not found or not allowed');
+    }
+
+    await this.commentRepository.deleteMany({
+      filter: {
+        commentId: new Types.ObjectId(commentId),
+      },
+    });
+
+    await this.commentRepository.deleteOne({
+      filter: {
+        _id: new Types.ObjectId(commentId),
+      },
+    });
+  }
 }

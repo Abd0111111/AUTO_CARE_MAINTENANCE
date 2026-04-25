@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Param,
   Patch,
   Post,
@@ -66,6 +67,17 @@ export class CommentController {
       user,
     );
 
+    return successResponse();
+  }
+
+  @Auth([RoleEnum.user, RoleEnum.admin])
+  @Delete(':commentId') 
+  async deleteComment(
+    @Param('commentId') commentId: string,
+    @Req() req,
+  ): Promise<IResponse> {
+    const user = req.credentials.user;
+    await this.commentService.deleteComment(commentId, user);
     return successResponse();
   }
 }

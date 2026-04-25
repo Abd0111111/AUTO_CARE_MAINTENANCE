@@ -126,4 +126,27 @@ export class PostService {
       },
     });
   }
+
+  async deletePost(postId: string, userId: string) {
+  const post = await this.postRepository.findOne({
+    filter: {
+      _id: new Types.ObjectId(postId),
+      createdBy: new Types.ObjectId(userId),
+    },
+  });
+
+  if (!post) {
+    throw new NotFoundException('post not found');
+  }
+
+  const deleted = await this.postRepository.deleteOne({
+    filter: {
+      _id: new Types.ObjectId(postId),
+    },
+  });
+
+  if (!deleted.deletedCount) {
+    throw new BadRequestException('delete failed');
+  }
+}
 }

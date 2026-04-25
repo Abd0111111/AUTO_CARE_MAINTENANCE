@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -95,6 +96,17 @@ export class PostController {
   @Patch(':postId/reject')
   async rejectPost(@Param('postId') postId: string) {
     await this.postService.changePostStatus(postId, 'rejected');
+    return successResponse();
+  }
+
+  @Auth([RoleEnum.user, RoleEnum.admin])
+  @Delete(':postId')
+  async deletePost(
+    @Param('postId') postId: string,
+    @Req() req,
+  ): Promise<IResponse> {
+    const userId = req.credentials.user._id;
+    await this.postService.deletePost(postId, userId);
     return successResponse();
   }
 }
