@@ -336,7 +336,7 @@ export default function CommunityScreen() {
         // TODO: Replace this local update with POST /community/posts/:id/comments.
         const nextComment: CommunityComment = {
           id: `comment-${Date.now()}`,
-          author: getUserName(profile.fullName),
+          author: getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`),
           text: trimmedText,
           createdAtLabel: "Now",
         };
@@ -361,8 +361,8 @@ export default function CommunityScreen() {
     const trimmedText = newPostText.trim();
     if (!trimmedText) return;
 
-    const userName = getUserName(profile.fullName);
-    const vehicleName = [profile.vehicleBrand, profile.modelName]
+    const userName = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
+    const vehicleName = [profile.vehicle?.brand, profile.vehicle?.model]
       .filter(Boolean)
       .join(" ");
 
@@ -511,12 +511,12 @@ export default function CommunityScreen() {
             <View style={styles.composerIdentityRow}>
               <View style={styles.avatarSmall}>
                 <Text style={styles.avatarTextSmall}>
-                  {getInitials(getUserName(profile.fullName))}
+                  {getInitials(getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`))}
                 </Text>
               </View>
               <View>
                 <Text style={styles.composerName}>
-                  {getUserName(profile.fullName)}
+                  {getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`)}
                 </Text>
                 <Text style={styles.composerMeta}>Share with community</Text>
               </View>
