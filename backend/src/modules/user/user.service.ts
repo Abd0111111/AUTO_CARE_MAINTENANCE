@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { FollowRepository, PostRepository, UserRepository } from 'src/DB';
+import {
+  FollowRepository,
+  PostRepository,
+  UserRepository,
+  VehicleRepository,
+} from 'src/DB';
 
 @Injectable()
 export class UserService {
@@ -8,6 +13,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly followRepository: FollowRepository,
     private readonly postRepository: PostRepository,
+    private readonly vehicleRepository: VehicleRepository,
   ) {}
 
   async getProfile(userId: string, viewerId: string) {
@@ -17,6 +23,18 @@ export class UserService {
     const user = await this.userRepository.findById({
       id: userObjectId,
     });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    let vehicle: any = null;
+
+    if (user.vehicleId) {
+      vehicle = await this.vehicleRepository.findOne({
+        filter: { _id: user.vehicleId },
+      });
+    }
 
     const [followersCount, followingCount, postsCount, posts, isFollowing] =
       await Promise.all([
@@ -47,6 +65,7 @@ export class UserService {
 
     return {
       user,
+      vehicle,
       stats: {
         followersCount,
         followingCount,

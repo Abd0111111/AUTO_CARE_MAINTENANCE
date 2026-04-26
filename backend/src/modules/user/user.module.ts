@@ -9,11 +9,19 @@ import {
   PostRepository,
   UserModel,
   UserRepository,
+  VehicleModel,
+  VehicleRepository,
 } from 'src/DB';
 
 @Module({
-  imports: [UserModel, FollowModel, PostModel],
-  providers: [UserService, UserRepository, FollowRepository, PostRepository],
+  imports: [UserModel, FollowModel, PostModel, VehicleModel],
+  providers: [
+    UserService,
+    UserRepository,
+    FollowRepository,
+    PostRepository,
+    VehicleRepository,
+  ],
   controllers: [UserController],
 })
 export class UserModule {
