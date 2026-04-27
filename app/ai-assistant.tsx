@@ -60,6 +60,7 @@ const INITIAL_SUPPORT_MESSAGES: ChatMessage[] = [];
 
 const SUPPORT_REPLY_NOTE = "Support Team • Usually replies within a few hours";
 
+
 function getCurrentTimeLabel() {
   const now = new Date();
   return now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -101,8 +102,8 @@ export default function AIAssistantScreen() {
   const [inputText, setInputText] = useState("");
 
   const vehicleName = useMemo(
-    () => [profile.vehicleBrand, profile.modelName].filter(Boolean).join(" "),
-    [profile.modelName, profile.vehicleBrand],
+    () => [profile?.vehicle?.brand, profile?.vehicle?.model].filter(Boolean).join(" "),
+    [profile?.vehicle?.model, profile?.vehicle?.brand],
   );
 
   const messages = activeTab === "ai" ? aiMessages : supportMessages;

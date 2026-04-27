@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserProfile, Post } from '@/context/user-profile-context';
 import { BottomNavbar } from '@/components/bottom-navbar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const COLORS = {
   background: '#0d1117',
@@ -147,10 +148,21 @@ function AccountPostCard({
   );
 }
 
+const handleLogout = async () => {
+  try {
+    await AsyncStorage.removeItem('access_token');
+    await AsyncStorage.removeItem('refresh_token');
+
+    router.replace('/sign-in');
+  } catch (err) {
+    console.log(err);
+  }
+};
 /* ─────────────── SCREEN ─────────────── */
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { profile, updateProfile } = useUserProfile();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const [posts, setPosts] = useState<Post[]>([]);
 
@@ -266,18 +278,30 @@ export default function AccountScreen() {
         <Text style={styles.title}>My Account</Text>
 
         {/* USER */}
-        <View style={styles.card}>
-          <View style={styles.identityRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{toInitials(fullName)}</Text>
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.name}>{valueOrFallback(fullName, 'User')}</Text>
-              <Text style={styles.meta}>{valueOrFallback(profile?.user?.email)}</Text>
-              <Text style={styles.meta}>{valueOrFallback(profile?.user?.phone)}</Text>
-            </View>
-          </View>
-        </View>
+<View style={styles.card}>
+  <View style={styles.identityRow}>
+    
+    <View style={styles.avatar}>
+      <Text style={styles.avatarText}>{toInitials(fullName)}</Text>
+    </View>
+
+    <View style={styles.identityText}>
+      <Text style={styles.name}>{valueOrFallback(fullName, 'User')}</Text>
+      <Text style={styles.meta}>{valueOrFallback(profile?.user?.email)}</Text>
+      <Text style={styles.meta}>{valueOrFallback(profile?.user?.phone)}</Text>
+    </View>
+
+    {/* Logout button */}
+<Pressable
+  onPress={() => setShowLogoutConfirm(true)}
+  style={styles.logoutButton}
+>
+  <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+  <Text style={styles.logoutText}>Logout</Text>
+</Pressable>
+
+  </View>
+</View>
 
         {/* STATS */}
         <View style={styles.card}>
@@ -308,6 +332,7 @@ export default function AccountScreen() {
           <InfoRow label="Transmission"  value={valueOrFallback(profile?.vehicle?.transmission)} />
           <InfoRow label="Fuel Type"     value={valueOrFallback(profile?.vehicle?.fuelType)} />
         </View>
+        
 
         {/* POSTS */}
         <Text style={styles.sectionTitle}>My Posts</Text>
@@ -324,7 +349,40 @@ export default function AccountScreen() {
         ) : (
           <Text style={styles.meta}>No posts yet</Text>
         )}
+        
       </ScrollView>
+      {showLogoutConfirm && (
+  <View style={styles.modalOverlay}>
+    <View style={styles.modalBox}>
+
+      <Text style={styles.modalTitle}>Logout</Text>
+      <Text style={styles.modalText}>
+        Are you sure you want to logout?
+      </Text>
+
+      <View style={styles.modalActions}>
+        
+        <Pressable
+          style={[styles.modalButton, { backgroundColor: '#30363d' }]}
+          onPress={() => setShowLogoutConfirm(false)}
+        >
+          <Text style={{ color: '#fff' }}>Cancel</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.modalButton, { backgroundColor: '#ef4444' }]}
+          onPress={async () => {
+            setShowLogoutConfirm(false);
+            await handleLogout();
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Logout</Text>
+        </Pressable>
+
+      </View>
+    </View>
+  </View>
+)}
 
       <BottomNavbar activeTab="home" />
     </View>
@@ -401,8 +459,72 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 14,
     borderWidth: 1, borderColor: COLORS.border,
   },
+
   sendButton: {
     backgroundColor: COLORS.primary, borderRadius: 10,
     padding: 9, justifyContent: 'center', alignItems: 'center',
   },
+  logoutIcon: {
+  marginLeft: 10,
+  padding: 6,
+  borderRadius: 10,
+  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  logoutButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 6,
+  paddingVertical: 6,
+  paddingHorizontal: 10,
+  borderRadius: 8,
+  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+},
+
+logoutText: {
+  color: '#ef4444',
+  fontSize: 14,
+  fontWeight: '600',
+},
+modalOverlay: {
+  position: 'absolute',
+  top: 0, left: 0, right: 0, bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.6)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 999,
+},
+
+modalBox: {
+  width: '80%',
+  backgroundColor: '#161b22',
+  padding: 20,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#30363d',
+},
+
+modalTitle: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#e6edf3',
+  marginBottom: 8,
+},
+
+modalText: {
+  color: '#8b949e',
+  marginBottom: 16,
+},
+
+modalActions: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 10,
+},
+
+modalButton: {
+  flex: 1,
+  paddingVertical: 10,
+  borderRadius: 8,
+  alignItems: 'center',
+},
 });
