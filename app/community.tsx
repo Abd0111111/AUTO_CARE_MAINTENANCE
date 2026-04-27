@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -74,13 +73,13 @@ type CommunityPost = {
   followedAuthor: boolean;
 };
 
-const BRAND_FILTERS: BrandFilter[] = ["All","Toyota","BMW","Honda","Kia","Ford"];
+const BRAND_FILTERS: BrandFilter[] = ["All", "Toyota", "BMW", "Honda", "Kia", "Ford"];
 const MY_USER_ID = "me";
 
 const AVAIL_OPTIONS: { value: Availability; label: string; icon: string }[] = [
-  { value: "public",  label: "Public",   icon: "globe-outline" },
-  { value: "friends", label: "Friends",  icon: "people-outline" },
-  { value: "onlyme",  label: "Only Me",  icon: "lock-closed-outline" },
+  { value: "public",  label: "Public",  icon: "globe-outline" },
+  { value: "friends", label: "Friends", icon: "people-outline" },
+  { value: "onlyme",  label: "Only Me", icon: "lock-closed-outline" },
 ];
 
 const INITIAL_POSTS: CommunityPost[] = [
@@ -199,7 +198,7 @@ export default function CommunityScreen() {
   const [newPostAvailability, setNewPostAvailability]   = useState<Availability>("public");
 
   // edit post
-  const [editPostId, setEditPostId]   = useState<string | null>(null);
+  const [editPostId, setEditPostId]     = useState<string | null>(null);
   const [editPostText, setEditPostText] = useState("");
 
   const filteredPosts = useMemo(() => {
@@ -211,12 +210,7 @@ export default function CommunityScreen() {
   const handleToggleLike   = (id: string) => setPosts((cur) => cur.map((p) => p.id !== id ? p : { ...p, likedByMe: !p.likedByMe, likes: !p.likedByMe ? p.likes + 1 : Math.max(0, p.likes - 1) }));
   const handleToggleFollow = (id: string) => setPosts((cur) => cur.map((p) => p.id !== id ? p : { ...p, followedAuthor: !p.followedAuthor }));
   const handleShare        = (id: string) => setPosts((cur) => cur.map((p) => p.id !== id ? p : { ...p, shares: p.shares + 1 }));
-
-  const handleDeletePost = (id: string) =>
-    Alert.alert("Delete Post", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setPosts((cur) => cur.filter((p) => p.id !== id)) },
-    ]);
+  const handleDeletePost   = (id: string) => setPosts((cur) => cur.filter((p) => p.id !== id));
 
   const handleOpenEditPost = (post: CommunityPost) => { setEditPostId(post.id); setEditPostText(post.content); };
   const handleSaveEditPost = () => {
@@ -266,9 +260,9 @@ export default function CommunityScreen() {
   const handleCreatePost = () => {
     const trimmed = newPostText.trim();
     if (!trimmed) return;
-    const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
+    const author  = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
     const vehicle = [profile.vehicle?.brand, profile.vehicle?.model].filter(Boolean).join(" ");
-    const tags = newPostTags.split(",").map((t) => t.trim()).filter(Boolean);
+    const tags    = newPostTags.split(",").map((t) => t.trim()).filter(Boolean);
     setPosts((cur) => [{
       id: `post-${Date.now()}`, author, authorId: MY_USER_ID,
       initials: getInitials(author),
@@ -361,14 +355,11 @@ export default function CommunityScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* content */}
               <TextInput style={styles.composerInput} placeholder="Write your post..." placeholderTextColor={COLORS.mutedDark} value={newPostText} onChangeText={setNewPostText} multiline textAlignVertical="top" />
 
-              {/* tags */}
               <Text style={styles.sheetLabel}>Tags (comma separated)</Text>
               <TextInput style={styles.tagsInput} placeholder="e.g. oil, maintenance, tips" placeholderTextColor={COLORS.mutedDark} value={newPostTags} onChangeText={setNewPostTags} />
 
-              {/* comments toggle */}
               <Text style={styles.sheetLabel}>Comments</Text>
               <View style={styles.toggleRow}>
                 {(["allow", "disable"] as AllowComments[]).map((opt) => (
@@ -379,7 +370,6 @@ export default function CommunityScreen() {
                 ))}
               </View>
 
-              {/* visibility */}
               <Text style={styles.sheetLabel}>Visibility</Text>
               <View style={styles.toggleRow}>
                 {AVAIL_OPTIONS.map((opt) => (
@@ -390,7 +380,6 @@ export default function CommunityScreen() {
                 ))}
               </View>
 
-              {/* car brand */}
               <Text style={styles.sheetLabel}>Car brand</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sheetFiltersRow}>
                 {BRAND_FILTERS.filter((b) => b !== "All").map((brand) => (
@@ -451,37 +440,49 @@ function CommunityPostCard({
   onShare: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const [commentsVisible, setCommentsVisible] = useState(false);
-  const [commentText, setCommentText] = useState("");
+  const [commentText, setCommentText]         = useState("");
+  const [showOptions, setShowOptions]         = useState(false);
+  const [confirmDelete, setConfirmDelete]     = useState(false);
   const isMyPost = post.authorId === myUserId;
 
-  const availIcon = post.availability === "public" ? "globe-outline" : post.availability === "friends" ? "people-outline" : "lock-closed-outline";
-
-  const handlePostOptions = () =>
-    Alert.alert("Post Options", undefined, [
-      { text: "Edit",   onPress: onEdit },
-      { text: "Delete", style: "destructive", onPress: onDelete },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const availIcon =
+    post.availability === "public"  ? "globe-outline"      :
+    post.availability === "friends" ? "people-outline"     :
+                                      "lock-closed-outline";
 
   const handleSendComment = () => {
     if (!commentText.trim()) return;
     onAddComment(commentText);
-    setCommentText(""); setCommentsVisible(true);
+    setCommentText("");
+    setCommentsVisible(true);
+  };
+
+  const handleCloseOptions = () => {
+    setShowOptions(false);
+    setConfirmDelete(false);
   };
 
   return (
     <View style={styles.postCard}>
-      {/* header */}
+      {/* ── header ── */}
       <View style={styles.postHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{post.initials}</Text>
         </View>
+
         <View style={styles.postIdentity}>
           <View style={styles.authorRow}>
             <Text style={styles.author}>{post.author}</Text>
             {!isMyPost && (
-              <Pressable style={[styles.followBtn, post.followedAuthor && styles.followBtnActive]} onPress={onToggleFollow}>
-                <Ionicons name={post.followedAuthor ? "checkmark" : "person-add-outline"} size={12} color={post.followedAuthor ? COLORS.text : COLORS.primary} />
+              <Pressable
+                style={[styles.followBtn, post.followedAuthor && styles.followBtnActive]}
+                onPress={onToggleFollow}
+              >
+                <Ionicons
+                  name={post.followedAuthor ? "checkmark" : "person-add-outline"}
+                  size={12}
+                  color={post.followedAuthor ? COLORS.text : COLORS.primary}
+                />
                 <Text style={[styles.followText, post.followedAuthor && styles.followTextActive]}>
                   {post.followedAuthor ? "Following" : "Follow"}
                 </Text>
@@ -496,14 +497,19 @@ function CommunityPostCard({
             <Ionicons name={availIcon as any} size={12} color={COLORS.mutedDark} />
           </View>
         </View>
+
         {isMyPost && (
-          <Pressable onPress={handlePostOptions} hitSlop={10} style={{ padding: 4 }}>
+          <Pressable
+            onPress={() => { setConfirmDelete(false); setShowOptions(true); }}
+            hitSlop={12}
+            style={styles.dotsBtn}
+          >
             <Ionicons name="ellipsis-horizontal" size={20} color={COLORS.muted} />
           </Pressable>
         )}
       </View>
 
-      {/* content */}
+      {/* ── content ── */}
       <Text style={styles.postText}>{post.content}</Text>
 
       {/* tags */}
@@ -528,11 +534,17 @@ function CommunityPostCard({
 
       <View style={styles.actionsDivider} />
 
-      {/* actions */}
+      {/* ── actions ── */}
       <View style={styles.actionsRow}>
         <Pressable style={styles.actionButton} onPress={onToggleLike}>
-          <Ionicons name={post.likedByMe ? "heart" : "heart-outline"} size={25} color={post.likedByMe ? COLORS.primary : COLORS.muted} />
-          <Text style={[styles.actionText, post.likedByMe && styles.actionTextActive]}>{post.likes}</Text>
+          <Ionicons
+            name={post.likedByMe ? "heart" : "heart-outline"}
+            size={25}
+            color={post.likedByMe ? COLORS.primary : COLORS.muted}
+          />
+          <Text style={[styles.actionText, post.likedByMe && styles.actionTextActive]}>
+            {post.likes}
+          </Text>
         </Pressable>
 
         {post.allowComments === "allow" && (
@@ -548,27 +560,100 @@ function CommunityPostCard({
         </Pressable>
       </View>
 
-      {/* comments section */}
-      {commentsVisible && post.allowComments === "allow" && (
-        <View style={styles.commentsWrap}>
-          {post.comments.map((comment) => (
-            <CommentItem
-              key={comment.id} comment={comment} myUserId={myUserId}
-              onEdit={(t)         => onEditComment(comment.id, t)}
-              onDelete={()        => onDeleteComment(comment.id)}
-              onAddReply={(t)     => onAddReply(comment.id, t)}
-              onEditReply={(rId, t) => onEditReply(comment.id, rId, t)}
-              onDeleteReply={(rId)  => onDeleteReply(comment.id, rId)}
+      {/* ── comments section ── */}
+      {post.allowComments === "allow" && (
+        <>
+          {/* comment input — always visible when comments allowed */}
+          <View style={[styles.commentInputRow, { marginTop: 14, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingTop: 12 }]}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write a comment..."
+              placeholderTextColor={COLORS.mutedDark}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
             />
-          ))}
-          <View style={styles.commentInputRow}>
-            <TextInput style={styles.commentInput} placeholder="Write a comment..." placeholderTextColor={COLORS.mutedDark} value={commentText} onChangeText={setCommentText} multiline />
             <Pressable style={styles.sendButton} onPress={handleSendComment}>
               <Ionicons name="send" size={18} color={COLORS.text} />
             </Pressable>
           </View>
-        </View>
+
+          {/* comment list — toggled */}
+          {commentsVisible && (
+            <View style={styles.commentsWrap}>
+              {post.comments.map((comment) => (
+                <CommentItem
+                  key={comment.id} comment={comment} myUserId={myUserId}
+                  onEdit={(t)           => onEditComment(comment.id, t)}
+                  onDelete={()          => onDeleteComment(comment.id)}
+                  onAddReply={(t)       => onAddReply(comment.id, t)}
+                  onEditReply={(rId, t) => onEditReply(comment.id, rId, t)}
+                  onDeleteReply={(rId)  => onDeleteReply(comment.id, rId)}
+                />
+              ))}
+            </View>
+          )}
+        </>
       )}
+
+      {/* ── POST OPTIONS MODAL ── */}
+      <Modal visible={showOptions} transparent animationType="fade" onRequestClose={handleCloseOptions}>
+        <Pressable style={styles.backdrop} onPress={handleCloseOptions}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            {!confirmDelete ? (
+              <>
+                <View style={styles.handle} />
+                <Text style={styles.sheetTitle}>Post Options</Text>
+
+                <Pressable style={styles.optionRow} onPress={() => { handleCloseOptions(); onEdit(); }}>
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(50,104,247,0.12)" }]}>
+                    <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionLabel}>Edit Post</Text>
+                    <Text style={styles.optionSub}>Change your post content</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <View style={styles.separator} />
+
+                <Pressable style={styles.optionRow} onPress={() => setConfirmDelete(true)}>
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(239,68,68,0.12)" }]}>
+                    <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionLabel, { color: COLORS.danger }]}>Delete Post</Text>
+                    <Text style={styles.optionSub}>This action cannot be undone</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <Pressable style={styles.cancelBtn} onPress={handleCloseOptions}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.handle} />
+                <View style={styles.confirmIcon}>
+                  <Ionicons name="trash" size={32} color={COLORS.danger} />
+                </View>
+                <Text style={styles.confirmTitle}>Delete Post?</Text>
+                <Text style={styles.confirmSub}>
+                  This post will be permanently deleted and cannot be recovered.
+                </Text>
+                <Pressable style={styles.deleteBtn} onPress={() => { handleCloseOptions(); onDelete(); }}>
+                  <Text style={styles.deleteBtnText}>Yes, Delete</Text>
+                </Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => setConfirmDelete(false)}>
+                  <Text style={styles.cancelText}>Go Back</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -586,32 +671,45 @@ function CommentItem({
   onDeleteReply: (rId: string) => void;
 }) {
   const [repliesVisible, setRepliesVisible] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [editing, setEditing]     = useState(false);
-  const [editText, setEditText]   = useState(comment.text);
+  const [replyText, setReplyText]           = useState("");
+  const [editing, setEditing]               = useState(false);
+  const [editText, setEditText]             = useState(comment.text);
+
+  // custom modal state
+  const [showOptions, setShowOptions]     = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const isMyComment = comment.authorId === myUserId;
 
-  const handleOptions = () =>
-    Alert.alert("Comment", undefined, [
-      { text: "Edit",   onPress: () => { setEditText(comment.text); setEditing(true); } },
-      { text: "Delete", style: "destructive", onPress: onDelete },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const handleCloseOptions = () => { setShowOptions(false); setConfirmDelete(false); };
 
   const handleSendReply = () => {
     if (!replyText.trim()) return;
     onAddReply(replyText);
-    setReplyText(""); setRepliesVisible(true);
+    setReplyText("");
+    setRepliesVisible(true);
   };
 
   return (
     <View style={styles.commentItem}>
       {editing ? (
         <View>
-          <TextInput style={styles.editInput} value={editText} onChangeText={setEditText} multiline placeholderTextColor={COLORS.mutedDark} />
+          <TextInput
+            style={styles.editInput}
+            value={editText}
+            onChangeText={setEditText}
+            multiline
+            placeholderTextColor={COLORS.mutedDark}
+            autoFocus
+          />
           <View style={styles.editActions}>
-            <Pressable onPress={() => setEditing(false)}><Text style={styles.cancelEditText}>Cancel</Text></Pressable>
-            <Pressable style={styles.saveEditBtn} onPress={() => { onEdit(editText); setEditing(false); }}>
+            <Pressable onPress={() => setEditing(false)}>
+              <Text style={styles.cancelEditText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={styles.saveEditBtn}
+              onPress={() => { onEdit(editText); setEditing(false); }}
+            >
               <Text style={styles.saveEditText}>Save</Text>
             </Pressable>
           </View>
@@ -623,7 +721,10 @@ function CommentItem({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={styles.commentTime}>{comment.createdAtLabel}</Text>
               {isMyComment && (
-                <Pressable onPress={handleOptions} hitSlop={8}>
+                <Pressable
+                  onPress={() => { setConfirmDelete(false); setShowOptions(true); }}
+                  hitSlop={8}
+                >
                   <Ionicons name="ellipsis-horizontal" size={16} color={COLORS.mutedDark} />
                 </Pressable>
               )}
@@ -631,7 +732,6 @@ function CommentItem({
           </View>
           <Text style={styles.commentText}>{comment.text}</Text>
 
-          {/* reply trigger */}
           <Pressable style={styles.replyTrigger} onPress={() => setRepliesVisible((v) => !v)}>
             <Ionicons name="return-down-forward-outline" size={13} color={COLORS.primary} />
             <Text style={styles.replyTriggerText}>
@@ -652,13 +752,86 @@ function CommentItem({
             />
           ))}
           <View style={styles.commentInputRow}>
-            <TextInput style={styles.commentInput} placeholder="Write a reply..." placeholderTextColor={COLORS.mutedDark} value={replyText} onChangeText={setReplyText} multiline />
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write a reply..."
+              placeholderTextColor={COLORS.mutedDark}
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+            />
             <Pressable style={styles.sendButton} onPress={handleSendReply}>
               <Ionicons name="send" size={16} color={COLORS.text} />
             </Pressable>
           </View>
         </View>
       )}
+
+      {/* ── COMMENT OPTIONS MODAL ── */}
+      <Modal visible={showOptions} transparent animationType="fade" onRequestClose={handleCloseOptions}>
+        <Pressable style={styles.backdrop} onPress={handleCloseOptions}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            {!confirmDelete ? (
+              <>
+                <View style={styles.handle} />
+                <Text style={styles.sheetTitle}>Comment Options</Text>
+
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => {
+                    setEditText(comment.text);
+                    handleCloseOptions();
+                    setEditing(true);
+                  }}
+                >
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(50,104,247,0.12)" }]}>
+                    <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionLabel}>Edit Comment</Text>
+                    <Text style={styles.optionSub}>Change your comment</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <View style={styles.separator} />
+
+                <Pressable style={styles.optionRow} onPress={() => setConfirmDelete(true)}>
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(239,68,68,0.12)" }]}>
+                    <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionLabel, { color: COLORS.danger }]}>Delete Comment</Text>
+                    <Text style={styles.optionSub}>This action cannot be undone</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <Pressable style={styles.cancelBtn} onPress={handleCloseOptions}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.handle} />
+                <View style={styles.confirmIcon}>
+                  <Ionicons name="trash" size={32} color={COLORS.danger} />
+                </View>
+                <Text style={styles.confirmTitle}>Delete Comment?</Text>
+                <Text style={styles.confirmSub}>
+                  This comment will be permanently deleted and cannot be recovered.
+                </Text>
+                <Pressable style={styles.deleteBtn} onPress={() => { handleCloseOptions(); onDelete(); }}>
+                  <Text style={styles.deleteBtnText}>Yes, Delete</Text>
+                </Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => setConfirmDelete(false)}>
+                  <Text style={styles.cancelText}>Go Back</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -670,25 +843,35 @@ function ReplyItem({ reply, myUserId, onEdit, onDelete }: {
   reply: CommunityReply; myUserId: string;
   onEdit: (t: string) => void; onDelete: () => void;
 }) {
-  const [editing, setEditing]   = useState(false);
-  const [editText, setEditText] = useState(reply.text);
+  const [editing, setEditing]             = useState(false);
+  const [editText, setEditText]           = useState(reply.text);
+  const [showOptions, setShowOptions]     = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const isMyReply = reply.authorId === myUserId;
 
-  const handleOptions = () =>
-    Alert.alert("Reply", undefined, [
-      { text: "Edit",   onPress: () => { setEditText(reply.text); setEditing(true); } },
-      { text: "Delete", style: "destructive", onPress: onDelete },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const handleCloseOptions = () => { setShowOptions(false); setConfirmDelete(false); };
 
   return (
     <View style={styles.replyItem}>
       {editing ? (
         <View>
-          <TextInput style={styles.editInput} value={editText} onChangeText={setEditText} multiline placeholderTextColor={COLORS.mutedDark} />
+          <TextInput
+            style={styles.editInput}
+            value={editText}
+            onChangeText={setEditText}
+            multiline
+            placeholderTextColor={COLORS.mutedDark}
+            autoFocus
+          />
           <View style={styles.editActions}>
-            <Pressable onPress={() => setEditing(false)}><Text style={styles.cancelEditText}>Cancel</Text></Pressable>
-            <Pressable style={styles.saveEditBtn} onPress={() => { onEdit(editText); setEditing(false); }}>
+            <Pressable onPress={() => setEditing(false)}>
+              <Text style={styles.cancelEditText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={styles.saveEditBtn}
+              onPress={() => { onEdit(editText); setEditing(false); }}
+            >
               <Text style={styles.saveEditText}>Save</Text>
             </Pressable>
           </View>
@@ -700,7 +883,10 @@ function ReplyItem({ reply, myUserId, onEdit, onDelete }: {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={styles.commentTime}>{reply.createdAtLabel}</Text>
               {isMyReply && (
-                <Pressable onPress={handleOptions} hitSlop={8}>
+                <Pressable
+                  onPress={() => { setConfirmDelete(false); setShowOptions(true); }}
+                  hitSlop={8}
+                >
                   <Ionicons name="ellipsis-horizontal" size={14} color={COLORS.mutedDark} />
                 </Pressable>
               )}
@@ -709,6 +895,72 @@ function ReplyItem({ reply, myUserId, onEdit, onDelete }: {
           <Text style={styles.commentText}>{reply.text}</Text>
         </>
       )}
+
+      {/* ── REPLY OPTIONS MODAL ── */}
+      <Modal visible={showOptions} transparent animationType="fade" onRequestClose={handleCloseOptions}>
+        <Pressable style={styles.backdrop} onPress={handleCloseOptions}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            {!confirmDelete ? (
+              <>
+                <View style={styles.handle} />
+                <Text style={styles.sheetTitle}>Reply Options</Text>
+
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => {
+                    setEditText(reply.text);
+                    handleCloseOptions();
+                    setEditing(true);
+                  }}
+                >
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(50,104,247,0.12)" }]}>
+                    <Ionicons name="create-outline" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionLabel}>Edit Reply</Text>
+                    <Text style={styles.optionSub}>Change your reply</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <View style={styles.separator} />
+
+                <Pressable style={styles.optionRow} onPress={() => setConfirmDelete(true)}>
+                  <View style={[styles.iconWrap, { backgroundColor: "rgba(239,68,68,0.12)" }]}>
+                    <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+                  </View>
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionLabel, { color: COLORS.danger }]}>Delete Reply</Text>
+                    <Text style={styles.optionSub}>This action cannot be undone</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.mutedDark} />
+                </Pressable>
+
+                <Pressable style={styles.cancelBtn} onPress={handleCloseOptions}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.handle} />
+                <View style={styles.confirmIcon}>
+                  <Ionicons name="trash" size={32} color={COLORS.danger} />
+                </View>
+                <Text style={styles.confirmTitle}>Delete Reply?</Text>
+                <Text style={styles.confirmSub}>
+                  This reply will be permanently deleted and cannot be recovered.
+                </Text>
+                <Pressable style={styles.deleteBtn} onPress={() => { handleCloseOptions(); onDelete(); }}>
+                  <Text style={styles.deleteBtnText}>Yes, Delete</Text>
+                </Pressable>
+                <Pressable style={styles.cancelBtn} onPress={() => setConfirmDelete(false)}>
+                  <Text style={styles.cancelText}>Go Back</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -773,7 +1025,7 @@ const styles = StyleSheet.create({
   shareCount: { color: COLORS.muted, fontSize: 14 },
 
   // comments
-  commentsWrap: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: COLORS.divider, gap: 10 },
+  commentsWrap: { marginTop: 10, gap: 10 },
   commentItem: { backgroundColor: COLORS.surfaceLight, borderRadius: 12, padding: 10, gap: 6 },
   commentHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   commentAuthor: { color: COLORS.text, fontSize: 13, fontWeight: "700" },
@@ -827,4 +1079,31 @@ const styles = StyleSheet.create({
   publishButton: { height: 54, borderRadius: 17, backgroundColor: COLORS.primary, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   publishButtonDisabled: { opacity: 0.45 },
   publishButtonText: { color: COLORS.text, fontSize: 17, fontWeight: "800" },
+
+  // bottom sheet / options modal (shared by post, comment, reply)
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 36,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  handle: { width: 40, height: 4, backgroundColor: COLORS.mutedDark, borderRadius: 2, alignSelf: "center", marginBottom: 20, opacity: 0.5 },
+  optionRow: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12 },
+  iconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  optionText: { flex: 1 },
+  optionLabel: { color: COLORS.text, fontSize: 15, fontWeight: "700" },
+  optionSub: { color: COLORS.mutedDark, fontSize: 12, marginTop: 2 },
+  separator: { height: 1, backgroundColor: COLORS.divider, marginVertical: 4 },
+  cancelBtn: { marginTop: 16, height: 50, borderRadius: 14, backgroundColor: COLORS.surfaceLight, alignItems: "center", justifyContent: "center" },
+  cancelText: { color: COLORS.muted, fontSize: 15, fontWeight: "700" },
+
+  // confirm delete
+  confirmIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(239,68,68,0.12)", alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 16 },
+  confirmTitle: { color: COLORS.text, fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 8 },
+  confirmSub: { color: COLORS.mutedDark, fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 24 },
+  deleteBtn: { height: 50, borderRadius: 14, backgroundColor: COLORS.danger, alignItems: "center", justifyContent: "center" },
+  deleteBtnText: { color: COLORS.text, fontSize: 15, fontWeight: "800" },
+
+  dotsBtn: { padding: 6, zIndex: 999, elevation: 10 },
 });
