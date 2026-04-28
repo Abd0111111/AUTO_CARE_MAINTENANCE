@@ -136,4 +136,45 @@ export class CommentService {
       },
     });
   }
+  async updateReply(commentId: string, replyId: string, body: any, user: any) {
+    const reply = await this.commentRepository.findOneAndUpdate({
+      filter: {
+        _id: new Types.ObjectId(replyId),
+        commentId: new Types.ObjectId(commentId), // مهم
+        freezedAt: { $exists: false },
+        $or: [{ createdBy: user._id }, ...(user.role === 'admin' ? [{}] : [])],
+      },
+      update: {
+        $set: {
+          content: body.content,
+          tags: body.tags?.map((id: string) => new Types.ObjectId(id)),
+        },
+      },
+      options: { new: true },
+    });
+
+    if (!reply) throw new NotFoundException('reply not found or not allowed');
+
+    return reply;
+  }
+  async deleteReply(commentId: string, replyId: string, user: any) {
+    const reply = await this.commentRepository.findOne({
+      filter: {
+        _id: new Types.ObjectId(replyId),
+        commentId: new Types.ObjectId(commentId), // تأكيد إنه reply
+        freezedAt: { $exists: false },
+        $or: [{ createdBy: user._id }, ...(user.role === 'admin' ? [{}] : [])],
+      },
+    });
+
+    if (!reply) {
+      throw new NotFoundException('reply not found or not allowed');
+    }
+
+    await this.commentRepository.deleteOne({
+      filter: {
+        _id: new Types.ObjectId(replyId),
+      },
+    });
+  }
 }

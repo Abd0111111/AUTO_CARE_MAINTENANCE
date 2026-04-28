@@ -71,13 +71,42 @@ export class CommentController {
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])
-  @Delete(':commentId') 
+  @Delete(':commentId')
   async deleteComment(
     @Param('commentId') commentId: string,
     @Req() req,
   ): Promise<IResponse> {
     const user = req.credentials.user;
     await this.commentService.deleteComment(commentId, user);
+    return successResponse();
+  }
+
+  @Auth([RoleEnum.user, RoleEnum.admin])
+  @Patch(':commentId/replies/:replyId')
+  async updateReply(
+    @Param('commentId') commentId: string,
+    @Param('replyId') replyId: string,
+    @Body() body,
+    @Req() req,
+  ): Promise<IResponse> {
+    const user = req.credentials.user;
+
+    await this.commentService.updateReply(commentId, replyId, body, user);
+
+    return successResponse();
+  }
+
+  @Auth([RoleEnum.user, RoleEnum.admin])
+  @Delete(':commentId/replies/:replyId')
+  async deleteReply(
+    @Param('commentId') commentId: string,
+    @Param('replyId') replyId: string,
+    @Req() req,
+  ): Promise<IResponse> {
+    const user = req.credentials.user;
+
+    await this.commentService.deleteReply(commentId, replyId, user);
+
     return successResponse();
   }
 }

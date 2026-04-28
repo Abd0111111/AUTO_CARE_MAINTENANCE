@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUserProfile, Post } from '@/context/user-profile-context';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '@/constants/api';
 
 const COLORS = {
   background: '#0d1117',
@@ -34,6 +35,20 @@ function valueOrFallback(value: string | number | null | undefined, fallback = '
   return text ? text : fallback;
 }
 
+function formatCreatedAt(dateStr?: string) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
 /* ─────────────── InfoRow ─────────────── */
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -44,6 +59,105 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/* ─────────────── API types matching the real response ─────────────── */
+interface ApiPost {
+  _id: string;
+  id?: string;
+  createdBy: string;
+  content: string;
+  status: string;
+  attachments: any[];
+  tags: any[];
+  likes: string[];           // array of userId strings
+  availability: string;
+  allowComments: string;
+  createdAt: string;
+  updatedAt: string;
+  comments?: ApiComment[];
+}
+
+interface ApiComment {
+  _id?: string;
+  id?: string;
+  author: string;
+  text: string;
+  createdAt?: string;
+}
+
+/* ─────────────── normalized post used by the UI ─────────────── */
+interface NormalizedPost {
+  id: string;
+  author: string;
+  initials: string;
+  vehicle: string;
+  createdAtLabel: string;
+  content: string;
+  likes: number;
+  likedByMe: boolean;
+  shares: number;
+  comments: {
+    id: string;
+    author: string;
+    text: string;
+    createdAtLabel: string;
+  }[];
+}
+
+/* ─────────────── fetchProfile ─────────────── */
+const fetchProfile = async () => {
+  const token = await AsyncStorage.getItem('access_token');
+  const userId = await AsyncStorage.getItem('userId');
+
+  if (!userId) {
+    throw new Error('UserId not found in storage');
+  }
+
+  const res = await fetch(`${BASE_URL}/user/${userId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token?.replace(/"/g, '')}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data?.message || 'Failed to fetch profile');
+  }
+
+  return data?.data;
+};
+
+/* ─────────────── normalizePost ─────────────── */
+function normalizePost(
+  apiPost: ApiPost,
+  currentUserId: string,
+  authorName: string,
+  vehicleName: string,
+): NormalizedPost {
+  return {
+    id: apiPost._id ?? apiPost.id ?? '',
+    author: authorName,
+    initials: toInitials(authorName),
+    vehicle: vehicleName,
+    createdAtLabel: formatCreatedAt(apiPost.createdAt),
+    content: apiPost.content ?? '',
+    // likes is an array of userId strings in the API
+    likes: Array.isArray(apiPost.likes) ? apiPost.likes.length : 0,
+    likedByMe: Array.isArray(apiPost.likes)
+      ? apiPost.likes.includes(currentUserId)
+      : false,
+    shares: 0,
+    comments: (apiPost.comments ?? []).map(c => ({
+      id: c._id ?? c.id ?? String(Math.random()),
+      author: c.author ?? 'User',
+      text: c.text ?? '',
+      createdAtLabel: formatCreatedAt(c.createdAt),
+    })),
+  };
+}
+
 /* ─────────────── AccountPostCard ─────────────── */
 function AccountPostCard({
   post,
@@ -51,7 +165,7 @@ function AccountPostCard({
   onAddComment,
   onShare,
 }: {
-  post: Post;
+  post: NormalizedPost;
   onToggleLike: () => void;
   onAddComment: (text: string) => void;
   onShare: () => void;
@@ -66,6 +180,8 @@ function AccountPostCard({
     setCommentsVisible(true);
   };
 
+  const comments = post.comments ?? [];
+
   return (
     <View style={styles.postCard}>
       {/* Header */}
@@ -76,8 +192,12 @@ function AccountPostCard({
         <View>
           <Text style={styles.postAuthor}>{post.author}</Text>
           <View style={styles.postMetaRow}>
-            <Text style={styles.postVehicle}>{post.vehicle}</Text>
-            <Text style={styles.postDot}>•</Text>
+            {!!post.vehicle.trim() && (
+              <>
+                <Text style={styles.postVehicle}>{post.vehicle}</Text>
+                <Text style={styles.postDot}>•</Text>
+              </>
+            )}
             <Text style={styles.postTime}>{post.createdAtLabel}</Text>
           </View>
         </View>
@@ -108,7 +228,7 @@ function AccountPostCard({
           onPress={() => setCommentsVisible(v => !v)}
         >
           <Ionicons name="chatbubble-outline" size={21} color={COLORS.muted} />
-          <Text style={styles.actionText}>{post.comments.length}</Text>
+          <Text style={styles.actionText}>{comments.length}</Text>
         </Pressable>
 
         {/* Share — pushed to right */}
@@ -121,7 +241,7 @@ function AccountPostCard({
       {/* Comments section */}
       {commentsVisible && (
         <View style={styles.commentsWrap}>
-          {post.comments.slice(-3).map((comment: any) => (
+          {comments.slice(-3).map(comment => (
             <View key={comment.id} style={styles.commentItem}>
               <Text style={styles.commentAuthor}>{comment.author}</Text>
               <Text style={styles.commentText}>{comment.text}</Text>
@@ -148,80 +268,57 @@ function AccountPostCard({
   );
 }
 
+/* ─────────────── handleLogout ─────────────── */
 const handleLogout = async () => {
   try {
     await AsyncStorage.removeItem('access_token');
     await AsyncStorage.removeItem('refresh_token');
-
     router.replace('/sign-in');
   } catch (err) {
     console.log(err);
   }
 };
+
 /* ─────────────── SCREEN ─────────────── */
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const { profile, updateProfile } = useUserProfile();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  const [posts, setPosts] = useState<Post[]>([]);
-
-  // sync posts from profile
-  useEffect(() => {
-    if (profile?.posts) setPosts(profile.posts);
-  }, [profile?.posts]);
+  const [posts, setPosts] = useState<NormalizedPost[]>([]);
 
   useEffect(() => {
-    const mockData = {
-      user: {
-        firstName: 'Khaled',
-        lastName: 'Ali',
-        email: 'khaled@gmail.com',
-        phone: '01111111111',
-        drivingExperience: 2,
-      },
-      vehicle: {
-        brand: 'Toyota',
-        model: 'Camry',
-        year: 2020,
-        engineCapacity: 2500,
-        mileage: 45000,
-        transmission: 'Automatic',
-        fuelType: 'Petrol',
-      },
-      stats: { followersCount: 10, followingCount: 5, postsCount: 3 },
-      posts: [
-        {
-          id: '1',
-          initials: 'KA',
-          author: 'Khaled Ali',
-          vehicle: 'Toyota Camry 2020',
-          createdAtLabel: '5h ago',
-          content: 'First trip 🚗',
-          images: [],
-          likes: 8,
-          comments: [
-            { id: 'c1', author: 'Sara M.', text: 'Nice!', createdAtLabel: '4h ago' },
-          ],
-          shares: 1,
-          likedByMe: false,
-        },
-        {
-          id: '2',
-          initials: 'KA',
-          author: 'Khaled Ali',
-          vehicle: 'Toyota Camry 2020',
-          createdAtLabel: '2d ago',
-          content: 'Changed oil today ✅',
-          images: [],
-          likes: 4,
-          comments: [],
-          shares: 0,
-          likedByMe: false,
-        },
-      ],
+    const loadProfile = async () => {
+      try {
+        const currentUserId = (await AsyncStorage.getItem('userId')) ?? '';
+        const { user, vehicle, stats, posts: apiPosts } = await fetchProfile();
+
+        updateProfile({
+          user: {
+            firstName: user?.firstName || '',
+            lastName: user?.lastName || '',
+            email: user?.email || '',
+            phone: user?.phone || '',
+            drivingExperience: user?.drivingExperience ?? null,
+          },
+          vehicle,
+          stats,
+          posts: apiPosts || [],
+        });
+
+        const authorName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+        const vehicleName = `${vehicle?.brand || ''} ${vehicle?.model || ''}`.trim();
+
+        const normalized: NormalizedPost[] = (apiPosts || []).map((p: ApiPost) =>
+          normalizePost(p, currentUserId, authorName, vehicleName)
+        );
+
+        setPosts(normalized);
+      } catch (err) {
+        console.log('Profile Error:', err);
+      }
     };
-    updateProfile(mockData);
+
+    loadProfile();
   }, []);
 
   /* ── handlers ── */
@@ -230,7 +327,11 @@ export default function AccountScreen() {
       current.map(p => {
         if (p.id !== postId) return p;
         const nextLiked = !p.likedByMe;
-        return { ...p, likedByMe: nextLiked, likes: nextLiked ? p.likes + 1 : Math.max(0, p.likes - 1) };
+        return {
+          ...p,
+          likedByMe: nextLiked,
+          likes: nextLiked ? p.likes + 1 : Math.max(0, p.likes - 1),
+        };
       })
     );
   };
@@ -243,11 +344,11 @@ export default function AccountScreen() {
         if (p.id !== postId) return p;
         const newComment = {
           id: `comment-${Date.now()}`,
-          author: `${profile?.user?.firstName ?? ''} ${profile?.user?.lastName ?? ''}`.trim(),
+          author: `${profile?.user?.firstName ?? ''} ${profile?.user?.lastName ?? ''}`.trim() || 'You',
           text: trimmed,
-          createdAtLabel: 'Now',
+          createdAtLabel: 'Just now',
         };
-        return { ...p, comments: [...p.comments, newComment] };
+        return { ...p, comments: [...(p.comments ?? []), newComment] };
       })
     );
   };
@@ -258,8 +359,8 @@ export default function AccountScreen() {
     );
   };
 
-  const fullName    = `${profile?.user?.firstName || ''} ${profile?.user?.lastName || ''}`;
-  const vehicleName = `${profile?.vehicle?.brand || ''} ${profile?.vehicle?.model || ''}`;
+  const fullName    = `${profile?.user?.firstName || ''} ${profile?.user?.lastName || ''}`.trim();
+  const vehicleName = `${profile?.vehicle?.brand || ''} ${profile?.vehicle?.model || ''}`.trim();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -278,30 +379,27 @@ export default function AccountScreen() {
         <Text style={styles.title}>My Account</Text>
 
         {/* USER */}
-<View style={styles.card}>
-  <View style={styles.identityRow}>
-    
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{toInitials(fullName)}</Text>
-    </View>
+        <View style={styles.card}>
+          <View style={styles.identityRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{toInitials(fullName)}</Text>
+            </View>
 
-    <View style={styles.identityText}>
-      <Text style={styles.name}>{valueOrFallback(fullName, 'User')}</Text>
-      <Text style={styles.meta}>{valueOrFallback(profile?.user?.email)}</Text>
-      <Text style={styles.meta}>{valueOrFallback(profile?.user?.phone)}</Text>
-    </View>
+            <View style={styles.identityText}>
+              <Text style={styles.name}>{valueOrFallback(fullName, 'User')}</Text>
+              <Text style={styles.meta}>{valueOrFallback(profile?.user?.email)}</Text>
+              <Text style={styles.meta}>{valueOrFallback(profile?.user?.phone)}</Text>
+            </View>
 
-    {/* Logout button */}
-<Pressable
-  onPress={() => setShowLogoutConfirm(true)}
-  style={styles.logoutButton}
->
-  <Ionicons name="log-out-outline" size={18} color="#ef4444" />
-  <Text style={styles.logoutText}>Logout</Text>
-</Pressable>
-
-  </View>
-</View>
+            <Pressable
+              onPress={() => setShowLogoutConfirm(true)}
+              style={styles.logoutButton}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </Pressable>
+          </View>
+        </View>
 
         {/* STATS */}
         <View style={styles.card}>
@@ -332,10 +430,9 @@ export default function AccountScreen() {
           <InfoRow label="Transmission"  value={valueOrFallback(profile?.vehicle?.transmission)} />
           <InfoRow label="Fuel Type"     value={valueOrFallback(profile?.vehicle?.fuelType)} />
         </View>
-        
 
         {/* POSTS */}
-        <Text style={styles.sectionTitle}>My Posts</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 4 }]}>My Posts</Text>
         {posts.length ? (
           posts.map(post => (
             <AccountPostCard
@@ -349,40 +446,34 @@ export default function AccountScreen() {
         ) : (
           <Text style={styles.meta}>No posts yet</Text>
         )}
-        
       </ScrollView>
+
+      {/* Logout modal */}
       {showLogoutConfirm && (
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalBox}>
-
-      <Text style={styles.modalTitle}>Logout</Text>
-      <Text style={styles.modalText}>
-        Are you sure you want to logout?
-      </Text>
-
-      <View style={styles.modalActions}>
-        
-        <Pressable
-          style={[styles.modalButton, { backgroundColor: '#30363d' }]}
-          onPress={() => setShowLogoutConfirm(false)}
-        >
-          <Text style={{ color: '#fff' }}>Cancel</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.modalButton, { backgroundColor: '#ef4444' }]}
-          onPress={async () => {
-            setShowLogoutConfirm(false);
-            await handleLogout();
-          }}
-        >
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Logout</Text>
-        </Pressable>
-
-      </View>
-    </View>
-  </View>
-)}
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Logout</Text>
+            <Text style={styles.modalText}>Are you sure you want to logout?</Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: '#30363d' }]}
+                onPress={() => setShowLogoutConfirm(false)}
+              >
+                <Text style={{ color: '#fff' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: '#ef4444' }]}
+                onPress={async () => {
+                  setShowLogoutConfirm(false);
+                  await handleLogout();
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Logout</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
 
       <BottomNavbar activeTab="home" />
     </View>
@@ -459,72 +550,61 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 14,
     borderWidth: 1, borderColor: COLORS.border,
   },
-
   sendButton: {
     backgroundColor: COLORS.primary, borderRadius: 10,
     padding: 9, justifyContent: 'center', alignItems: 'center',
   },
-  logoutIcon: {
-  marginLeft: 10,
-  padding: 6,
-  borderRadius: 10,
-  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
+
   logoutButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 6,
-  paddingVertical: 6,
-  paddingHorizontal: 10,
-  borderRadius: 8,
-  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+  },
+  logoutText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 
-logoutText: {
-  color: '#ef4444',
-  fontSize: 14,
-  fontWeight: '600',
-},
-modalOverlay: {
-  position: 'absolute',
-  top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.6)',
-  justifyContent: 'center',
-  alignItems: 'center',
-  zIndex: 999,
-},
-
-modalBox: {
-  width: '80%',
-  backgroundColor: '#161b22',
-  padding: 20,
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: '#30363d',
-},
-
-modalTitle: {
-  fontSize: 18,
-  fontWeight: '700',
-  color: '#e6edf3',
-  marginBottom: 8,
-},
-
-modalText: {
-  color: '#8b949e',
-  marginBottom: 16,
-},
-
-modalActions: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  gap: 10,
-},
-
-modalButton: {
-  flex: 1,
-  paddingVertical: 10,
-  borderRadius: 8,
-  alignItems: 'center',
-},
+  modalOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  modalBox: {
+    width: '80%',
+    backgroundColor: '#161b22',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#e6edf3',
+    marginBottom: 8,
+  },
+  modalText: {
+    color: '#8b949e',
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
 });

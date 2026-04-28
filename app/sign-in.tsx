@@ -17,6 +17,7 @@ import { APP_COLORS } from '@/constants/app-colors';
 import { BottomNavbar } from '@/components/bottom-navbar';
 import { signInStyles as styles } from '@/styles/sign-in.styles';
 import { BASE_URL } from '@/constants/api';
+import { jwtDecode } from 'jwt-decode';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -89,42 +90,42 @@ await AsyncStorage.setItem('access_token', accessToken);
 if (refreshToken) {
   await AsyncStorage.setItem('refresh_token', refreshToken);
 }
+const decoded: any = jwtDecode(accessToken);
+
+const userId = decoded?.sub;
+
+if (!userId) {
+  throw new Error('User ID not found in token');
+}
+
+await AsyncStorage.setItem('userId', userId);
+
+await AsyncStorage.setItem('userId', userId); 
 
 const savedUserProfile = await AsyncStorage.getItem('user_profile');
 const oldUserProfile = savedUserProfile ? JSON.parse(savedUserProfile) : {};
 
-const user =
-  data?.data?.user ||
-  data?.user ||
-  data?.data?.account ||
-  data?.account ||
-  data?.data?.profile ||
-  data?.profile ||
-  {};
-
 const userProfile = {
-  fullName:
-    user.fullName ||
-    user.name ||
-    user.username ||
-    oldUserProfile.fullName ||
-    '',
+  user: {
+    firstName:
+      oldUserProfile.user?.firstName ||
+      '',
 
-  email:
-    user.email ||
-    oldUserProfile.email ||
-    trimmedEmail,
+    lastName:
+      oldUserProfile.user?.lastName ||
+      '',
 
-  phone:
-    user.phone ||
-    user.phoneNumber ||
-    oldUserProfile.phone ||
-    '',
+    email:
+      oldUserProfile.user?.email ||
+      trimmedEmail,
 
-  drivingExperience:
-    user.drivingExperience ??
-    oldUserProfile.drivingExperience ??
-    null,
+    phone:
+      oldUserProfile.user?.phone ||
+      '',
+
+    drivingExperience:
+      oldUserProfile.user?.drivingExperience ?? null,
+  },
 };
 
 updateProfile(userProfile);

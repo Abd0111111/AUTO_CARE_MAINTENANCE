@@ -17,6 +17,7 @@ import { BottomNavbar } from '@/components/bottom-navbar';
 import { useUserProfile } from '@/context/user-profile-context';
 import { vehicleSetupStyles as styles } from '@/styles/vehicle-setup.styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '@/constants/api';
 
 const FUEL_TYPE_OPTIONS = ['Gasoline 92', 'Gasoline 95', 'Diesel'];
 
@@ -56,26 +57,73 @@ export default function VehicleSetupScreen() {
 
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
+      const mapFuelType = (value: string) => {
+        if (value.includes('Gasoline')) return 'petrol';
+        if (value === 'Diesel') return 'diesel';
+        return value;
+      };
+      const createVehicle = async (vehicleData: any) => {
+  try {
+      const token = await AsyncStorage.getItem('access_token');
 
-    const vehicleProfile = {
-  vehicleBrand: vehicleBrand.trim(),
-  modelName: modelName.trim(),
-  manufacturingYear: manufacturingYear.trim(),
-  engineCapacity: engineCapacity.trim(),
-  odometerMileage: odometerMileage.trim(),
-  fuelType,
-  transmission,
+      if (!token) {
+        throw new Error('No token found');
+      }
+
+      const res = await fetch(`${BASE_URL}/vehicle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`, 
+        },
+        body: JSON.stringify(vehicleData),
+      });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.log('Vehicle API Error:', data);
+      throw new Error(data?.message || 'Failed to create vehicle');
+    }
+
+    return data;
+  } catch (err) {
+    console.log('Vehicle Error:', err);
+    throw err;
+  }
 };
 
-updateProfile(vehicleProfile);
+      const vehicleData = {
+        brand: vehicleBrand.trim(),
+        model: modelName.trim(),
+        year: Number(manufacturingYear),
+        engineCapacity: Number(engineCapacity),
+        mileage: Number(odometerMileage),
+        fuelType: mapFuelType(fuelType), // مهم
+        transmission: transmission.toLowerCase(), // مهم
+        tankCapacity: Number(tankCapacity),
+      };
 
-await AsyncStorage.setItem('vehicle_profile', JSON.stringify(vehicleProfile));
+      await createVehicle(vehicleData);
+      updateProfile({
+        vehicle: {
+          brand: vehicleData.brand,
+          model: vehicleData.model,
+          year: vehicleData.year,
+          engineCapacity: vehicleData.engineCapacity,
+          mileage: vehicleData.mileage,
+          transmission: vehicleData.transmission,
+          fuelType: vehicleData.fuelType,
+        },
+      });
 
-await AsyncStorage.removeItem('needs_vehicle_setup');
+        await AsyncStorage.setItem('vehicle_profile', JSON.stringify(vehicleData));
 
-router.replace('/profile');
-    
-  };
+        await AsyncStorage.removeItem('needs_vehicle_setup');
+
+        router.replace('/profile');
+            
+      };
 
   const clearError = (field: string) => {
     setErrors((prev) => {
@@ -235,7 +283,7 @@ router.replace('/profile');
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavbar activeTab="car" />
+      <BottomNavbar activeTab="home" />
 
       <Modal visible={showFuelModal} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => setShowFuelModal(false)}>
