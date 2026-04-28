@@ -43,7 +43,7 @@ const COLORS = {
    TYPES
 ════════════════════════════════════════ */
 type BrandFilter    = "All" | "Toyota" | "BMW" | "Honda" | "Kia" | "Ford";
-type Availability   = "public" | "friends" | "onlyme";
+type Availability   = "public" | "friends" | "onlyMe";
 type AllowComments  = "allow" | "disable";
 
 interface ApiReply {
@@ -85,6 +85,7 @@ interface CommunityReply {
   authorId: string;
   text: string;
   createdAtLabel: string;
+  pending?: boolean;    // true while waiting for backend to confirm real ID
 }
 
 interface CommunityComment {
@@ -94,6 +95,7 @@ interface CommunityComment {
   text: string;
   createdAtLabel: string;
   replies: CommunityReply[];
+  pending?: boolean;    // true while waiting for backend to confirm real ID
 }
 
 interface CommunityPost {
@@ -113,6 +115,7 @@ interface CommunityPost {
   shares: number;
   likedByMe: boolean;
   followedAuthor: boolean;
+  pending?: boolean;    // true while waiting for backend to confirm real ID
 }
 
 /* ════════════════════════════════════════
@@ -123,7 +126,7 @@ const BRAND_FILTERS: BrandFilter[] = ["All", "Toyota", "BMW", "Honda", "Kia", "F
 const AVAIL_OPTIONS: { value: Availability; label: string; icon: string }[] = [
   { value: "public",  label: "Public",  icon: "globe-outline" },
   { value: "friends", label: "Friends", icon: "people-outline" },
-  { value: "onlyme",  label: "Only Me", icon: "lock-closed-outline" },
+  { value: "onlyMe",  label: "Only Me", icon: "lock-closed-outline" },
 ];
 
 /* ════════════════════════════════════════
@@ -159,22 +162,29 @@ function resolveAuthorId(createdBy: ApiPost["createdBy"]): string {
   return createdBy._id ?? "";
 }
 
-function resolveAuthorName(createdBy: ApiPost["createdBy"]): string {
-  if (typeof createdBy === "string") return "User";
+function resolveAuthorName(
+  createdBy: ApiPost["createdBy"],
+  myUserId?: string,
+  myName?: string,
+): string {
+  if (typeof createdBy === "string") {
+    if (myUserId && myName && createdBy === myUserId) return myName;
+    return "User";
+  }
   if (createdBy.username) return createdBy.username;
   return `${createdBy.firstName ?? ""} ${createdBy.lastName ?? ""}`.trim() || "User";
 }
 
-function normalizeComment(c: ApiComment, myUserId: string): CommunityComment {
+function normalizeComment(c: ApiComment, myUserId: string, myName: string): CommunityComment {
   return {
     id:             c._id ?? c.id ?? "",
-    author:         resolveAuthorName(c.createdBy),
+    author:         resolveAuthorName(c.createdBy, myUserId, myName),
     authorId:       resolveAuthorId(c.createdBy),
     text:           c.content ?? "",
     createdAtLabel: formatCreatedAt(c.createdAt),
     replies: (c.replies ?? []).map(r => ({
       id:             r._id ?? r.id ?? "",
-      author:         resolveAuthorName(r.createdBy),
+      author:         resolveAuthorName(r.createdBy, myUserId, myName),
       authorId:       resolveAuthorId(r.createdBy),
       text:           r.content ?? "",
       createdAtLabel: formatCreatedAt(r.createdAt),
@@ -182,13 +192,13 @@ function normalizeComment(c: ApiComment, myUserId: string): CommunityComment {
   };
 }
 
-function normalizePost(p: ApiPost, myUserId: string): CommunityPost {
+function normalizePost(p: ApiPost, myUserId: string, myName: string): CommunityPost {
   return {
     id:             p._id ?? p.id ?? "",
-    author:         resolveAuthorName(p.createdBy),
+    author:         resolveAuthorName(p.createdBy, myUserId, myName),
     authorId:       resolveAuthorId(p.createdBy),
-    initials:       getInitials(resolveAuthorName(p.createdBy)),
-    vehicle:        "",                         // API doesn't return vehicle on posts list
+    initials:       getInitials(resolveAuthorName(p.createdBy, myUserId, myName)),
+    vehicle:        "",
     createdAtLabel: formatCreatedAt(p.createdAt),
     content:        p.content ?? "",
     tags:           p.tags ?? [],
@@ -197,7 +207,7 @@ function normalizePost(p: ApiPost, myUserId: string): CommunityPost {
     images:         p.attachments ?? [],
     likes:          Array.isArray(p.likes) ? p.likes.length : 0,
     likedByMe:      Array.isArray(p.likes) ? p.likes.includes(myUserId) : false,
-    comments:       (p.comments ?? []).map(c => normalizeComment(c, myUserId)),
+    comments:       (p.comments ?? []).map(c => normalizeComment(c, myUserId, myName)),
     shares:         0,
     followedAuthor: false,
   };
@@ -215,37 +225,37 @@ async function authHeaders() {
 }
 
 async function apiGet(path: string) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method:  "GET",
-    headers: await authHeaders(),
-  });
-  return res.json();
+  const res  = await fetch(`${BASE_URL}${path}`, { method: "GET", headers: await authHeaders() });
+  const json = await res.json();
+  if (!res.ok) console.warn(`[GET ${path}] ${res.status}`, json);
+  return json;
 }
 
 async function apiPost(path: string, body?: object) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method:  "POST",
-    headers: await authHeaders(),
-    body:    body ? JSON.stringify(body) : undefined,
+  const res  = await fetch(`${BASE_URL}${path}`, {
+    method: "POST", headers: await authHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+  const json = await res.json();
+  if (!res.ok) console.warn(`[POST ${path}] ${res.status}`, json);
+  return json;
 }
 
 async function apiPatch(path: string, body?: object) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method:  "PATCH",
-    headers: await authHeaders(),
-    body:    body ? JSON.stringify(body) : undefined,
+  const res  = await fetch(`${BASE_URL}${path}`, {
+    method: "PATCH", headers: await authHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json();
+  const json = await res.json();
+  if (!res.ok) console.warn(`[PATCH ${path}] ${res.status}`, json);
+  return json;
 }
 
 async function apiDelete(path: string) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method:  "DELETE",
-    headers: await authHeaders(),
-  });
-  return res.json();
+  const res  = await fetch(`${BASE_URL}${path}`, { method: "DELETE", headers: await authHeaders() });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) console.warn(`[DELETE ${path}] ${res.status}`, json);
+  return json;
 }
 
 /* ════════════════════════════════════════
@@ -277,6 +287,9 @@ export default function CommunityScreen() {
   const [editPostText, setEditPostText] = useState("");
   const [saving,       setSaving]       = useState(false);
 
+  const myName = getUserName(
+    `${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`.trim()
+  );
   /* ── load userId once ── */
   useEffect(() => {
     AsyncStorage.getItem("userId").then(id => setMyUserId(id?.replace(/"/g, "") ?? ""));
@@ -289,7 +302,7 @@ export default function CommunityScreen() {
       const data = await apiGet(`/posts?page=${pageNum}&size=10`);
       const uid  = await AsyncStorage.getItem("userId").then(v => v?.replace(/"/g, "") ?? "");
       const result: ApiPost[] = data?.data?.posts?.result ?? [];
-      const normalized = result.map(p => normalizePost(p, uid));
+      const normalized = result.map(p => normalizePost(p, uid, myName));
       setPosts(prev => replace ? normalized : [...prev, ...normalized]);
       setTotalPages(data?.data?.posts?.pages ?? 1);
       setPage(pageNum);
@@ -299,9 +312,9 @@ export default function CommunityScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [myName]);
 
-  useEffect(() => { fetchPosts(1); }, []);
+  useEffect(() => { fetchPosts(1); }, [fetchPosts]);
 
   const filteredPosts = useMemo(() => {
     if (activeFilter === "All") return posts;
@@ -311,6 +324,7 @@ export default function CommunityScreen() {
   /* ════════ POST HANDLERS ════════ */
 
   const handleToggleLike = async (postId: string, likedByMe: boolean) => {
+    if (posts.find(p => p.id === postId)?.pending) return;
     // optimistic
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
@@ -321,7 +335,6 @@ export default function CommunityScreen() {
       const action = likedByMe ? "unlike" : "like";
       await apiPatch(`/posts/${postId}/like?action=${action}`);
     } catch (err) {
-      // revert on error
       setPosts(cur => cur.map(p => p.id !== postId ? p : {
         ...p,
         likedByMe,
@@ -332,7 +345,7 @@ export default function CommunityScreen() {
   };
 
   const handleToggleFollow = async (postId: string, authorId: string, followedAuthor: boolean) => {
-    // optimistic
+    if (posts.find(p => p.id === postId)?.pending) return;
     setPosts(cur => cur.map(p => p.id !== postId ? p : { ...p, followedAuthor: !followedAuthor }));
     try {
       if (followedAuthor) {
@@ -346,16 +359,20 @@ export default function CommunityScreen() {
     }
   };
 
-  const handleShare = (id: string) =>
+  const handleShare = (id: string) => {
+    if (posts.find(p => p.id === id)?.pending) return;
     setPosts(cur => cur.map(p => p.id !== id ? p : { ...p, shares: p.shares + 1 }));
+  };
 
   const handleDeletePost = async (postId: string) => {
-    setPosts(cur => cur.filter(p => p.id !== postId)); // optimistic
+    if (posts.find(p => p.id === postId)?.pending) return;
+    setPosts(cur => cur.filter(p => p.id !== postId));
     try {
-      await apiDelete(`/posts/${postId}`);
+      const data = await apiDelete(`/posts/${postId}`);
+      console.log("[deletePost] full response:", JSON.stringify(data));
     } catch (err) {
-      console.log("deletePost error:", err);
-      fetchPosts(1); // revert by refetching
+      console.log("[deletePost] error:", err);
+      fetchPosts(1);
     }
   };
 
@@ -367,13 +384,25 @@ export default function CommunityScreen() {
   const handleSaveEditPost = async () => {
     if (!editPostId || !editPostText.trim()) return;
     setSaving(true);
+    // Find the post so we can send all required fields back
+    const currentPost = posts.find(p => p.id === editPostId);
+    // Optimistic update immediately
+    setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: editPostText.trim() }));
+    const prevContent = currentPost?.content ?? "";
     try {
-      await apiPatch(`/posts/${editPostId}`, { content: editPostText.trim() });
-      setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: editPostText.trim() }));
+      const data = await apiPatch(`/posts/${editPostId}`, {
+        content:       editPostText.trim(),
+        tags:          currentPost?.tags ?? [],
+        allowComments: currentPost?.allowComments ?? "allow",
+        availability:  currentPost?.availability ?? "public",
+      });
+      console.log("[editPost] full response:", JSON.stringify(data));
       setEditPostId(null);
       setEditPostText("");
     } catch (err) {
-      console.log("editPost error:", err);
+      // Revert on failure
+      setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: prevContent }));
+      console.log("[editPost] error:", err);
     } finally {
       setSaving(false);
     }
@@ -383,53 +412,88 @@ export default function CommunityScreen() {
 
   const handleAddComment = async (postId: string, text: string) => {
     if (!text.trim()) return;
+    // Block comments on posts that haven't been confirmed by the backend yet
+    const targetPost = posts.find(p => p.id === postId);
+    if (targetPost?.pending) return;
+
     const tempId = `temp-c-${Date.now()}`;
     const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
-    // optimistic
+    // Optimistic — marked pending so edit/delete/reply are blocked until real ID arrives
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       comments: [...p.comments, {
         id: tempId, author, authorId: myUserId,
         text: text.trim(), createdAtLabel: "Just now", replies: [],
+        pending: true,
       }],
     }));
     try {
-      const data = await apiPost(`/comments/${postId}`, { content: text.trim(), tags: [] });
-      const saved: ApiComment = data?.data?.comment ?? data?.data;
-      if (saved?._id) {
+      const data = await apiPost(`/comments/${postId}`, { content: text.trim() });
+      console.log("[addComment] full response:", JSON.stringify(data));
+
+      const saved: ApiComment | null =
+        data?.data?.comment ??
+        data?.data?.result ??
+        data?.data ??
+        null;
+
+      if (saved && (saved._id || saved.id)) {
+        // Replace temp comment with real confirmed comment (pending removed)
         setPosts(cur => cur.map(p => p.id !== postId ? p : {
           ...p,
-          comments: p.comments.map(c => c.id !== tempId ? c : normalizeComment(saved, myUserId)),
+          comments: p.comments.map(c => c.id !== tempId ? c : normalizeComment(saved, myUserId , myName)),
+        }));
+      } else {
+        // Backend returned 200 but no comment object — keep comment but clear pending
+        // so the user can still interact (edit/delete may fail but at least not 500 on temp ID)
+        console.warn("[addComment] no saved comment in response:", JSON.stringify(data));
+        setPosts(cur => cur.map(p => p.id !== postId ? p : {
+          ...p,
+          comments: p.comments.map(c => c.id !== tempId ? c : { ...c, pending: false }),
         }));
       }
     } catch (err) {
-      // revert
+      // Revert — remove the temp comment
       setPosts(cur => cur.map(p => p.id !== postId ? p : {
         ...p, comments: p.comments.filter(c => c.id !== tempId),
       }));
-      console.log("addComment error:", err);
+      console.log("[addComment] error:", err);
     }
   };
 
   const handleEditComment = async (postId: string, commentId: string, text: string) => {
+    const targetComment = posts.find(p => p.id === postId)?.comments.find(c => c.id === commentId);
+    if (targetComment?.pending) return; // not yet confirmed by backend
+
+    const prev = targetComment?.text ?? "";
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p, comments: p.comments.map(c => c.id !== commentId ? c : { ...c, text }),
     }));
     try {
-      await apiPatch(`/comments/${commentId}`, { content: text });
+      const data = await apiPatch(`/comments/${commentId}`, { content: text });
+      console.log("[editComment] full response:", JSON.stringify(data));
     } catch (err) {
-      console.log("editComment error:", err);
+      setPosts(cur => cur.map(p => p.id !== postId ? p : {
+        ...p, comments: p.comments.map(c => c.id !== commentId ? c : { ...c, text: prev }),
+      }));
+      console.log("[editComment] error:", err);
     }
   };
 
   const handleDeleteComment = async (postId: string, commentId: string) => {
+    const targetComment = posts.find(p => p.id === postId)?.comments.find(c => c.id === commentId);
+    if (targetComment?.pending) return; // not yet confirmed by backend
+
+    const prevComments = posts.find(p => p.id === postId)?.comments ?? [];
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p, comments: p.comments.filter(c => c.id !== commentId),
     }));
     try {
-      await apiDelete(`/comments/${commentId}`);
+      const data = await apiDelete(`/comments/${commentId}`);
+      console.log("[deleteComment] full response:", JSON.stringify(data));
     } catch (err) {
-      console.log("deleteComment error:", err);
+      setPosts(cur => cur.map(p => p.id !== postId ? p : { ...p, comments: prevComments }));
+      console.log("[deleteComment] error:", err);
     }
   };
 
@@ -437,6 +501,10 @@ export default function CommunityScreen() {
 
   const handleAddReply = async (postId: string, commentId: string, text: string) => {
     if (!text.trim()) return;
+    const targetPost    = posts.find(p => p.id === postId);
+    const targetComment = targetPost?.comments.find(c => c.id === commentId);
+    if (targetPost?.pending || targetComment?.pending) return;
+
     const tempId = `temp-r-${Date.now()}`;
     const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
@@ -446,24 +514,42 @@ export default function CommunityScreen() {
         replies: [...c.replies, {
           id: tempId, author, authorId: myUserId,
           text: text.trim(), createdAtLabel: "Just now",
+          pending: true,
         }],
       }),
     }));
     try {
-      const data = await apiPost(`/comments/${postId}/${commentId}/reply`, { content: text.trim(), tags: [] });
-      const saved: ApiReply = data?.data?.reply ?? data?.data;
-      if (saved?._id) {
+      const data = await apiPost(`/comments/${postId}/${commentId}/reply`, { content: text.trim() });
+      console.log("[addReply] full response:", JSON.stringify(data));
+
+      const saved: ApiReply | null =
+        data?.data?.reply ??
+        data?.data?.comment ??
+        data?.data ??
+        null;
+
+      if (saved && (saved._id || saved.id)) {
         setPosts(cur => cur.map(p => p.id !== postId ? p : {
           ...p,
           comments: p.comments.map(c => c.id !== commentId ? c : {
             ...c,
             replies: c.replies.map(r => r.id !== tempId ? r : {
-              id:             saved._id,
+              id:             saved._id ?? saved.id ?? tempId,
               author:         resolveAuthorName(saved.createdBy),
               authorId:       resolveAuthorId(saved.createdBy),
               text:           saved.content ?? text,
               createdAtLabel: formatCreatedAt(saved.createdAt),
+              pending:        false,
             }),
+          }),
+        }));
+      } else {
+        console.warn("[addReply] no saved reply in response:", JSON.stringify(data));
+        setPosts(cur => cur.map(p => p.id !== postId ? p : {
+          ...p,
+          comments: p.comments.map(c => c.id !== commentId ? c : {
+            ...c,
+            replies: c.replies.map(r => r.id !== tempId ? r : { ...r, pending: false }),
           }),
         }));
       }
@@ -474,11 +560,18 @@ export default function CommunityScreen() {
           ...c, replies: c.replies.filter(r => r.id !== tempId),
         }),
       }));
-      console.log("addReply error:", err);
+      console.log("[addReply] error:", err);
     }
   };
 
   const handleEditReply = async (postId: string, commentId: string, replyId: string, text: string) => {
+    const targetReply = posts
+      .find(p => p.id === postId)?.comments
+      .find(c => c.id === commentId)?.replies
+      .find(r => r.id === replyId);
+    if (targetReply?.pending) return;
+
+    const prevText = targetReply?.text ?? "";
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       comments: p.comments.map(c => c.id !== commentId ? c : {
@@ -486,13 +579,29 @@ export default function CommunityScreen() {
       }),
     }));
     try {
-      await apiPatch(`/comments/${commentId}/replies/${replyId}`, { content: text });
+      const data = await apiPatch(`/comments/${commentId}/replies/${replyId}`, { content: text });
+      console.log("[editReply] full response:", JSON.stringify(data));
     } catch (err) {
-      console.log("editReply error:", err);
+      setPosts(cur => cur.map(p => p.id !== postId ? p : {
+        ...p,
+        comments: p.comments.map(c => c.id !== commentId ? c : {
+          ...c, replies: c.replies.map(r => r.id !== replyId ? r : { ...r, text: prevText }),
+        }),
+      }));
+      console.log("[editReply] error:", err);
     }
   };
 
   const handleDeleteReply = async (postId: string, commentId: string, replyId: string) => {
+    const targetReply = posts
+      .find(p => p.id === postId)?.comments
+      .find(c => c.id === commentId)?.replies
+      .find(r => r.id === replyId);
+    if (targetReply?.pending) return;
+
+    const prevReplies = posts
+      .find(p => p.id === postId)?.comments
+      .find(c => c.id === commentId)?.replies ?? [];
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       comments: p.comments.map(c => c.id !== commentId ? c : {
@@ -500,9 +609,14 @@ export default function CommunityScreen() {
       }),
     }));
     try {
-      await apiDelete(`/comments/${commentId}/replies/${replyId}`);
+      const data = await apiDelete(`/comments/${commentId}/replies/${replyId}`);
+      console.log("[deleteReply] full response:", JSON.stringify(data));
     } catch (err) {
-      console.log("deleteReply error:", err);
+      setPosts(cur => cur.map(p => p.id !== postId ? p : {
+        ...p,
+        comments: p.comments.map(c => c.id !== commentId ? c : { ...c, replies: prevReplies }),
+      }));
+      console.log("[deleteReply] error:", err);
     }
   };
 
@@ -512,26 +626,69 @@ export default function CommunityScreen() {
     const trimmed = newPostText.trim();
     if (!trimmed) return;
     setPublishing(true);
+
+    // Build optimistic post immediately so it shows on screen right away
+    const uid    = await AsyncStorage.getItem("userId").then(v => v?.replace(/"/g, "") ?? "");
+    const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
+    const tags   = newPostTags.split(",").map(t => t.trim()).filter(Boolean);
+    const tempId = `temp-post-${Date.now()}`;
+
+    const optimisticPost: CommunityPost = {
+      id:             tempId,
+      author,
+      authorId:       uid,
+      initials:       getInitials(author),
+      vehicle:        "",
+      createdAtLabel: "Just now",
+      content:        trimmed,
+      tags,
+      allowComments:  newPostAllowComments,
+      availability:   newPostAvailability,
+      images:         [],
+      likes:          0,
+      likedByMe:      false,
+      comments:       [],
+      shares:         0,
+      followedAuthor: false,
+      pending:        true,   // ← blocks all actions until real ID arrives
+    };
+
+    setPosts(cur => [optimisticPost, ...cur]);
+    setNewPostText("");
+    setNewPostTags("");
+    setNewPostAllowComments("allow");
+    setNewPostAvailability("public");
+    setComposerVisible(false);
+
     try {
-      const tags = newPostTags.split(",").map(t => t.trim()).filter(Boolean);
       const data = await apiPost("/posts", {
         content:       trimmed,
         tags,
         allowComments: newPostAllowComments,
         availability:  newPostAvailability,
       });
-      const saved: ApiPost = data?.data?.post ?? data?.data;
-      if (saved) {
-        const uid = await AsyncStorage.getItem("userId").then(v => v?.replace(/"/g, "") ?? "");
-        setPosts(cur => [normalizePost(saved, uid), ...cur]);
+
+      console.log("[createPost] full response:", JSON.stringify(data));
+
+      // Try every possible path the backend might return the post at
+      const saved: ApiPost | null =
+        data?.data?.post ??
+        data?.data?.result ??
+        data?.data ??
+        null;
+
+      if (saved && (saved._id || saved.id)) {
+        // Replace optimistic post with real confirmed post (pending removed)
+        setPosts(cur => cur.map(p => p.id !== tempId ? p : normalizePost(saved, uid, myName)));
+      } else {
+        // Backend didn't return a usable post — remove optimistic one
+        console.warn("[createPost] no saved post in response, removing optimistic post");
+        setPosts(cur => cur.filter(p => p.id !== tempId));
       }
-      setNewPostText("");
-      setNewPostTags("");
-      setNewPostAllowComments("allow");
-      setNewPostAvailability("public");
-      setComposerVisible(false);
     } catch (err) {
-      console.log("createPost error:", err);
+      console.log("[createPost] error:", err);
+      // Remove optimistic post on network failure so no dangling temp ID
+      setPosts(cur => cur.filter(p => p.id !== tempId));
     } finally {
       setPublishing(false);
     }
@@ -786,6 +943,7 @@ function CommunityPostCard({
   const [showOptions,     setShowOptions]     = useState(false);
   const [confirmDelete,   setConfirmDelete]   = useState(false);
   const isMyPost = post.authorId === myUserId;
+  const isPending = !!post.pending;
 
   const availIcon =
     post.availability === "public"  ? "globe-outline"      :
@@ -812,7 +970,12 @@ function CommunityPostCard({
         <View style={styles.postIdentity}>
           <View style={styles.authorRow}>
             <Text style={styles.author}>{post.author}</Text>
-            {!isMyPost && (
+            {isPending && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingText}>Pending approval</Text>
+              </View>
+            )}
+            {!isMyPost && !isPending && (
               <Pressable
                 style={[styles.followBtn, post.followedAuthor && styles.followBtnActive]}
                 onPress={onToggleFollow}
@@ -836,7 +999,7 @@ function CommunityPostCard({
           </View>
         </View>
 
-        {isMyPost && (
+        {isMyPost && !isPending && (
           <Pressable
             onPress={() => { setConfirmDelete(false); setShowOptions(true); }}
             hitSlop={12}
@@ -872,9 +1035,9 @@ function CommunityPostCard({
 
       <View style={styles.actionsDivider} />
 
-      {/* actions */}
-      <View style={styles.actionsRow}>
-        <Pressable style={styles.actionButton} onPress={onToggleLike}>
+      {/* actions — disabled while post is pending approval */}
+      <View style={[styles.actionsRow, isPending && { opacity: 0.4 }]}>
+        <Pressable style={styles.actionButton} onPress={onToggleLike} disabled={isPending}>
           <Ionicons
             name={post.likedByMe ? "heart" : "heart-outline"}
             size={25}
@@ -884,20 +1047,20 @@ function CommunityPostCard({
         </Pressable>
 
         {post.allowComments === "allow" && (
-          <Pressable style={styles.actionButton} onPress={() => setCommentsVisible(v => !v)}>
+          <Pressable style={styles.actionButton} onPress={() => setCommentsVisible(v => !v)} disabled={isPending}>
             <Ionicons name="chatbubble-outline" size={24} color={COLORS.muted} />
             <Text style={styles.actionText}>{post.comments.length}</Text>
           </Pressable>
         )}
 
-        <Pressable style={styles.shareButton} onPress={onShare}>
+        <Pressable style={styles.shareButton} onPress={onShare} disabled={isPending}>
           <Ionicons name="share-social-outline" size={24} color={COLORS.muted} />
           {post.shares > 0 && <Text style={styles.shareCount}>{post.shares}</Text>}
         </Pressable>
       </View>
 
-      {/* comments section */}
-      {post.allowComments === "allow" && (
+      {/* comments section — hidden while post is pending */}
+      {post.allowComments === "allow" && !isPending && (
         <>
           <View style={[styles.commentInputRow, { marginTop: 14, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingTop: 12 }]}>
             <TextInput
@@ -1382,6 +1545,9 @@ const styles = StyleSheet.create({
   deleteBtnText:{ color: COLORS.text, fontSize: 15, fontWeight: "800" },
 
   dotsBtn: { padding: 6, zIndex: 999, elevation: 10 },
+
+  pendingBadge: { backgroundColor: "rgba(255,200,0,0.15)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: "rgba(255,200,0,0.3)" },
+  pendingText:  { color: "#f5c400", fontSize: 11, fontWeight: "700" },
 
   sheetFiltersRow: { gap: 10, paddingBottom: 16 },
   sheetFilterPill: { height: 40, borderRadius: 20, paddingHorizontal: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.35)", alignItems: "center", justifyContent: "center" },
