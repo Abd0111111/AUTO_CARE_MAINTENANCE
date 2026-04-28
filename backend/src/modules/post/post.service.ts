@@ -48,7 +48,7 @@ export class PostService {
           createdBy: new Types.ObjectId(userId),
           allowComments: body.allowComments ?? AllowCommentsEnum.allow,
           availability: body.availability ?? PostAvailabilityEnum.public,
-          status: 'pending',
+          status: 'approved',
         },
       ],
     });
@@ -56,6 +56,7 @@ export class PostService {
     if (!post) {
       throw new BadRequestException('fail to create post');
     }
+    return post;
   }
 
   async updatePost(postId: string, body: any, userId: string) {
@@ -128,25 +129,25 @@ export class PostService {
   }
 
   async deletePost(postId: string, userId: string) {
-  const post = await this.postRepository.findOne({
-    filter: {
-      _id: new Types.ObjectId(postId),
-      createdBy: new Types.ObjectId(userId),
-    },
-  });
+    const post = await this.postRepository.findOne({
+      filter: {
+        _id: new Types.ObjectId(postId),
+        createdBy: new Types.ObjectId(userId),
+      },
+    });
 
-  if (!post) {
-    throw new NotFoundException('post not found');
+    if (!post) {
+      throw new NotFoundException('post not found');
+    }
+
+    const deleted = await this.postRepository.deleteOne({
+      filter: {
+        _id: new Types.ObjectId(postId),
+      },
+    });
+
+    if (!deleted.deletedCount) {
+      throw new BadRequestException('delete failed');
+    }
   }
-
-  const deleted = await this.postRepository.deleteOne({
-    filter: {
-      _id: new Types.ObjectId(postId),
-    },
-  });
-
-  if (!deleted.deletedCount) {
-    throw new BadRequestException('delete failed');
-  }
-}
 }

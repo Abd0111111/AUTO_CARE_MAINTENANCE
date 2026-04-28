@@ -54,6 +54,8 @@ export class CommentService {
     });
 
     if (!comment) throw new BadRequestException('fail to create comment');
+
+    return comment;
   }
 
   async replyOnComment(
@@ -85,6 +87,8 @@ export class CommentService {
     });
 
     if (!reply) throw new BadRequestException('fail to reply');
+    
+    return reply;
   }
 
   async updateComment(commentId: string, body: any, user: any) {
@@ -140,7 +144,7 @@ export class CommentService {
     const reply = await this.commentRepository.findOneAndUpdate({
       filter: {
         _id: new Types.ObjectId(replyId),
-        commentId: new Types.ObjectId(commentId), // مهم
+        commentId: new Types.ObjectId(commentId),
         freezedAt: { $exists: false },
         $or: [{ createdBy: user._id }, ...(user.role === 'admin' ? [{}] : [])],
       },
@@ -161,7 +165,7 @@ export class CommentService {
     const reply = await this.commentRepository.findOne({
       filter: {
         _id: new Types.ObjectId(replyId),
-        commentId: new Types.ObjectId(commentId), // تأكيد إنه reply
+        commentId: new Types.ObjectId(commentId),
         freezedAt: { $exists: false },
         $or: [{ createdBy: user._id }, ...(user.role === 'admin' ? [{}] : [])],
       },

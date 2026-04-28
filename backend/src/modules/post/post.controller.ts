@@ -36,9 +36,9 @@ export class PostController {
   ): Promise<IResponse> {
     const userId = req.credentials.user._id;
 
-    await this.postService.createPost(body, userId);
+    const post = await this.postService.createPost(body, userId);
 
-    return successResponse();
+    return successResponse({ data: post });
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])

@@ -32,9 +32,13 @@ export class CommentController {
   ): Promise<IResponse> {
     const userId = req.credentials.user._id;
 
-    await this.commentService.createComment(postId, body, userId);
+    const comment = await this.commentService.createComment(
+      postId,
+      body,
+      userId,
+    );
 
-    return successResponse();
+    return successResponse({ data: comment });
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])
@@ -47,9 +51,14 @@ export class CommentController {
   ): Promise<IResponse> {
     const userId = req.credentials.user._id;
 
-    await this.commentService.replyOnComment(postId, commentId, body, userId);
+    const reply = await this.commentService.replyOnComment(
+      postId,
+      commentId,
+      body,
+      userId,
+    );
 
-    return successResponse();
+    return successResponse({ data: reply });
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])
