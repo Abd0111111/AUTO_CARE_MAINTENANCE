@@ -66,7 +66,7 @@ interface ApiComment {
 interface ApiPost {
   _id?: string;
   id: string;
-  createdBy: string | { _id: string; firstName?: string; lastName?: string; username?: string };
+  createdBy: string | { _id: string; firstName?: string; lastName?: string; username?: string; car?: string; vehicle?: string; carModel?: string };
   content: string;
   status: string;
   attachments: string[];
@@ -77,6 +77,8 @@ interface ApiPost {
   createdAt: string;
   updatedAt: string;
   comments?: ApiComment[];
+  // FIX #4: API may return follow state
+  isFollowing?: boolean;
 }
 
 interface CommunityReply {
@@ -85,7 +87,7 @@ interface CommunityReply {
   authorId: string;
   text: string;
   createdAtLabel: string;
-  pending?: boolean;    // true while waiting for backend to confirm real ID
+  pending?: boolean;
 }
 
 interface CommunityComment {
@@ -95,7 +97,7 @@ interface CommunityComment {
   text: string;
   createdAtLabel: string;
   replies: CommunityReply[];
-  pending?: boolean;    // true while waiting for backend to confirm real ID
+  pending?: boolean;
 }
 
 interface CommunityPost {
@@ -115,7 +117,7 @@ interface CommunityPost {
   shares: number;
   likedByMe: boolean;
   followedAuthor: boolean;
-  pending?: boolean;    // true while waiting for backend to confirm real ID
+  pending?: boolean;
 }
 
 /* ════════════════════════════════════════
@@ -162,17 +164,33 @@ function resolveAuthorId(createdBy: ApiPost["createdBy"]): string {
   return createdBy._id ?? "";
 }
 
+// FIX #3: When createdBy is a populated object, always use its fields.
+// Only fall back to myName when the ID matches the logged-in user.
 function resolveAuthorName(
   createdBy: ApiPost["createdBy"],
   myUserId?: string,
   myName?: string,
 ): string {
   if (typeof createdBy === "string") {
+    // createdBy is just an ID string — only show our own name if it's us
     if (myUserId && myName && createdBy === myUserId) return myName;
+    // For other users whose data wasn't populated, we can't know their name
     return "User";
   }
+  // createdBy is a populated object — use it directly
   if (createdBy.username) return createdBy.username;
-  return `${createdBy.firstName ?? ""} ${createdBy.lastName ?? ""}`.trim() || "User";
+  const fullName = `${createdBy.firstName ?? ""} ${createdBy.lastName ?? ""}`.trim();
+  if (fullName) return fullName;
+  // Last resort: check if it's the logged-in user
+  if (myUserId && myName && createdBy._id === myUserId) return myName;
+  return "User";
+}
+
+// FIX #6: Extract car/vehicle model from the populated createdBy object
+function resolveAuthorVehicle(createdBy: ApiPost["createdBy"]): string {
+  if (typeof createdBy === "string") return "";
+  // Support common field names your API might use
+  return createdBy.car ?? createdBy.vehicle ?? createdBy.carModel ?? "";
 }
 
 function normalizeComment(c: ApiComment, myUserId: string, myName: string): CommunityComment {
@@ -184,6 +202,7 @@ function normalizeComment(c: ApiComment, myUserId: string, myName: string): Comm
     createdAtLabel: formatCreatedAt(c.createdAt),
     replies: (c.replies ?? []).map(r => ({
       id:             r._id ?? r.id ?? "",
+      // FIX #2: Pass myUserId + myName so reply author resolves correctly
       author:         resolveAuthorName(r.createdBy, myUserId, myName),
       authorId:       resolveAuthorId(r.createdBy),
       text:           r.content ?? "",
@@ -192,13 +211,20 @@ function normalizeComment(c: ApiComment, myUserId: string, myName: string): Comm
   };
 }
 
-function normalizePost(p: ApiPost, myUserId: string, myName: string): CommunityPost {
+function normalizePost(
+  p: ApiPost,
+  myUserId: string,
+  myName: string,
+  followedAuthorIds: Set<string>,   // FIX #4 & #5: global follow state
+): CommunityPost {
+  const authorId = resolveAuthorId(p.createdBy);
   return {
     id:             p._id ?? p.id ?? "",
     author:         resolveAuthorName(p.createdBy, myUserId, myName),
-    authorId:       resolveAuthorId(p.createdBy),
+    authorId,
     initials:       getInitials(resolveAuthorName(p.createdBy, myUserId, myName)),
-    vehicle:        "",
+    // FIX #6: Resolve vehicle from populated createdBy
+    vehicle:        resolveAuthorVehicle(p.createdBy),
     createdAtLabel: formatCreatedAt(p.createdAt),
     content:        p.content ?? "",
     tags:           p.tags ?? [],
@@ -209,7 +235,9 @@ function normalizePost(p: ApiPost, myUserId: string, myName: string): CommunityP
     likedByMe:      Array.isArray(p.likes) ? p.likes.includes(myUserId) : false,
     comments:       (p.comments ?? []).map(c => normalizeComment(c, myUserId, myName)),
     shares:         0,
-    followedAuthor: false,
+    // FIX #4 & #5: use global followedAuthorIds set so state persists across cards
+    followedAuthor: p.isFollowing ?? followedAuthorIds.has(authorId),
+    pending:        false,
   };
 }
 
@@ -274,6 +302,10 @@ export default function CommunityScreen() {
   const [totalPages,   setTotalPages]    = useState(1);
   const [loadingMore,  setLoadingMore]   = useState(false);
 
+  // FIX #4 & #5: Track followed author IDs globally so all cards stay in sync
+  // and state persists across page re-fetches
+  const [followedAuthorIds, setFollowedAuthorIds] = useState<Set<string>>(new Set());
+
   // composer
   const [composerVisible,        setComposerVisible]        = useState(false);
   const [newPostText,            setNewPostText]            = useState("");
@@ -290,6 +322,7 @@ export default function CommunityScreen() {
   const myName = getUserName(
     `${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`.trim()
   );
+
   /* ── load userId once ── */
   useEffect(() => {
     AsyncStorage.getItem("userId").then(id => setMyUserId(id?.replace(/"/g, "") ?? ""));
@@ -302,8 +335,26 @@ export default function CommunityScreen() {
       const data = await apiGet(`/posts?page=${pageNum}&size=10`);
       const uid  = await AsyncStorage.getItem("userId").then(v => v?.replace(/"/g, "") ?? "");
       const result: ApiPost[] = data?.data?.posts?.result ?? [];
-      const normalized = result.map(p => normalizePost(p, uid, myName));
-      setPosts(prev => replace ? normalized : [...prev, ...normalized]);
+
+      // FIX #4: Build the follow set from the API response (isFollowing field)
+      // then merge with existing local follow state so user actions aren't lost
+      setFollowedAuthorIds(prev => {
+        const next = new Set(prev);
+        result.forEach(p => {
+          const authorId = resolveAuthorId(p.createdBy);
+          if (p.isFollowing === true)  next.add(authorId);
+          if (p.isFollowing === false && !prev.has(authorId)) next.delete(authorId);
+        });
+        return next;
+      });
+
+      // We need the latest followedAuthorIds when normalizing — use a local copy
+      setFollowedAuthorIds(prev => {
+        const normalized = result.map(p => normalizePost(p, uid, myName, prev));
+        setPosts(cur => replace ? normalized : [...cur, ...normalized]);
+        return prev;
+      });
+
       setTotalPages(data?.data?.posts?.pages ?? 1);
       setPage(pageNum);
     } catch (err) {
@@ -316,6 +367,15 @@ export default function CommunityScreen() {
 
   useEffect(() => { fetchPosts(1); }, [fetchPosts]);
 
+  // FIX #5: When followedAuthorIds changes, sync all posts so every card
+  // showing the same author updates at once
+  useEffect(() => {
+    setPosts(cur => cur.map(p => ({
+      ...p,
+      followedAuthor: followedAuthorIds.has(p.authorId),
+    })));
+  }, [followedAuthorIds]);
+
   const filteredPosts = useMemo(() => {
     if (activeFilter === "All") return posts;
     return posts.filter(p => p.vehicle.toLowerCase().includes(activeFilter.toLowerCase()));
@@ -325,7 +385,6 @@ export default function CommunityScreen() {
 
   const handleToggleLike = async (postId: string, likedByMe: boolean) => {
     if (posts.find(p => p.id === postId)?.pending) return;
-    // optimistic
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       likedByMe: !likedByMe,
@@ -344,9 +403,19 @@ export default function CommunityScreen() {
     }
   };
 
+  // FIX #5: Update the global followedAuthorIds set so ALL cards by this
+  // author update simultaneously. FIX #4: State persists on re-fetch.
   const handleToggleFollow = async (postId: string, authorId: string, followedAuthor: boolean) => {
     if (posts.find(p => p.id === postId)?.pending) return;
-    setPosts(cur => cur.map(p => p.id !== postId ? p : { ...p, followedAuthor: !followedAuthor }));
+
+    // Update global follow set — triggers the useEffect above to sync all cards
+    setFollowedAuthorIds(prev => {
+      const next = new Set(prev);
+      if (followedAuthor) next.delete(authorId);
+      else next.add(authorId);
+      return next;
+    });
+
     try {
       if (followedAuthor) {
         await apiDelete(`/follow/${authorId}`);
@@ -354,7 +423,13 @@ export default function CommunityScreen() {
         await apiPost(`/follow/${authorId}`);
       }
     } catch (err) {
-      setPosts(cur => cur.map(p => p.id !== postId ? p : { ...p, followedAuthor }));
+      // Revert on failure
+      setFollowedAuthorIds(prev => {
+        const next = new Set(prev);
+        if (followedAuthor) next.add(authorId);
+        else next.delete(authorId);
+        return next;
+      });
       console.log("toggleFollow error:", err);
     }
   };
@@ -384,9 +459,7 @@ export default function CommunityScreen() {
   const handleSaveEditPost = async () => {
     if (!editPostId || !editPostText.trim()) return;
     setSaving(true);
-    // Find the post so we can send all required fields back
     const currentPost = posts.find(p => p.id === editPostId);
-    // Optimistic update immediately
     setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: editPostText.trim() }));
     const prevContent = currentPost?.content ?? "";
     try {
@@ -400,7 +473,6 @@ export default function CommunityScreen() {
       setEditPostId(null);
       setEditPostText("");
     } catch (err) {
-      // Revert on failure
       setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: prevContent }));
       console.log("[editPost] error:", err);
     } finally {
@@ -412,13 +484,11 @@ export default function CommunityScreen() {
 
   const handleAddComment = async (postId: string, text: string) => {
     if (!text.trim()) return;
-    // Block comments on posts that haven't been confirmed by the backend yet
     const targetPost = posts.find(p => p.id === postId);
     if (targetPost?.pending) return;
 
     const tempId = `temp-c-${Date.now()}`;
     const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
-    // Optimistic — marked pending so edit/delete/reply are blocked until real ID arrives
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       comments: [...p.comments, {
@@ -438,14 +508,11 @@ export default function CommunityScreen() {
         null;
 
       if (saved && (saved._id || saved.id)) {
-        // Replace temp comment with real confirmed comment (pending removed)
         setPosts(cur => cur.map(p => p.id !== postId ? p : {
           ...p,
-          comments: p.comments.map(c => c.id !== tempId ? c : normalizeComment(saved, myUserId , myName)),
+          comments: p.comments.map(c => c.id !== tempId ? c : normalizeComment(saved, myUserId, myName)),
         }));
       } else {
-        // Backend returned 200 but no comment object — keep comment but clear pending
-        // so the user can still interact (edit/delete may fail but at least not 500 on temp ID)
         console.warn("[addComment] no saved comment in response:", JSON.stringify(data));
         setPosts(cur => cur.map(p => p.id !== postId ? p : {
           ...p,
@@ -453,7 +520,6 @@ export default function CommunityScreen() {
         }));
       }
     } catch (err) {
-      // Revert — remove the temp comment
       setPosts(cur => cur.map(p => p.id !== postId ? p : {
         ...p, comments: p.comments.filter(c => c.id !== tempId),
       }));
@@ -463,7 +529,7 @@ export default function CommunityScreen() {
 
   const handleEditComment = async (postId: string, commentId: string, text: string) => {
     const targetComment = posts.find(p => p.id === postId)?.comments.find(c => c.id === commentId);
-    if (targetComment?.pending) return; // not yet confirmed by backend
+    if (targetComment?.pending) return;
 
     const prev = targetComment?.text ?? "";
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
@@ -482,7 +548,7 @@ export default function CommunityScreen() {
 
   const handleDeleteComment = async (postId: string, commentId: string) => {
     const targetComment = posts.find(p => p.id === postId)?.comments.find(c => c.id === commentId);
-    if (targetComment?.pending) return; // not yet confirmed by backend
+    if (targetComment?.pending) return;
 
     const prevComments = posts.find(p => p.id === postId)?.comments ?? [];
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
@@ -506,7 +572,8 @@ export default function CommunityScreen() {
     if (targetPost?.pending || targetComment?.pending) return;
 
     const tempId = `temp-r-${Date.now()}`;
-    const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
+    // FIX #2: Use the resolved myName so reply author shows correctly
+    const author = myName;
     setPosts(cur => cur.map(p => p.id !== postId ? p : {
       ...p,
       comments: p.comments.map(c => c.id !== commentId ? c : {
@@ -535,7 +602,8 @@ export default function CommunityScreen() {
             ...c,
             replies: c.replies.map(r => r.id !== tempId ? r : {
               id:             saved._id ?? saved.id ?? tempId,
-              author:         resolveAuthorName(saved.createdBy),
+              // FIX #2: Pass myUserId + myName to resolveAuthorName
+              author:         resolveAuthorName(saved.createdBy, myUserId, myName),
               authorId:       resolveAuthorId(saved.createdBy),
               text:           saved.content ?? text,
               createdAtLabel: formatCreatedAt(saved.createdAt),
@@ -627,9 +695,9 @@ export default function CommunityScreen() {
     if (!trimmed) return;
     setPublishing(true);
 
-    // Build optimistic post immediately so it shows on screen right away
     const uid    = await AsyncStorage.getItem("userId").then(v => v?.replace(/"/g, "") ?? "");
     const author = getUserName(`${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`);
+    // FIX #1: Capture tags BEFORE clearing state
     const tags   = newPostTags.split(",").map(t => t.trim()).filter(Boolean);
     const tempId = `temp-post-${Date.now()}`;
 
@@ -650,10 +718,19 @@ export default function CommunityScreen() {
       comments:       [],
       shares:         0,
       followedAuthor: false,
-      pending:        true,   // ← blocks all actions until real ID arrives
+      pending:        true,
+    };
+
+    // FIX #1: Capture values needed for the API call BEFORE resetting state
+    const postPayload = {
+      content:       trimmed,
+      tags,                         // ← already captured above, not affected by state reset
+      allowComments: newPostAllowComments,
+      availability:  newPostAvailability,
     };
 
     setPosts(cur => [optimisticPost, ...cur]);
+    // Reset UI state — this no longer affects postPayload
     setNewPostText("");
     setNewPostTags("");
     setNewPostAllowComments("allow");
@@ -661,16 +738,11 @@ export default function CommunityScreen() {
     setComposerVisible(false);
 
     try {
-      const data = await apiPost("/posts", {
-        content:       trimmed,
-        tags,
-        allowComments: newPostAllowComments,
-        availability:  newPostAvailability,
-      });
+      // FIX #1: Send captured payload, not potentially-reset state
+      const data = await apiPost("/posts", postPayload);
 
       console.log("[createPost] full response:", JSON.stringify(data));
 
-      // Try every possible path the backend might return the post at
       const saved: ApiPost | null =
         data?.data?.post ??
         data?.data?.result ??
@@ -678,16 +750,13 @@ export default function CommunityScreen() {
         null;
 
       if (saved && (saved._id || saved.id)) {
-        // Replace optimistic post with real confirmed post (pending removed)
-        setPosts(cur => cur.map(p => p.id !== tempId ? p : normalizePost(saved, uid, myName)));
+        setPosts(cur => cur.map(p => p.id !== tempId ? p : normalizePost(saved, uid, myName, followedAuthorIds)));
       } else {
-        // Backend didn't return a usable post — remove optimistic one
         console.warn("[createPost] no saved post in response, removing optimistic post");
         setPosts(cur => cur.filter(p => p.id !== tempId));
       }
     } catch (err) {
       console.log("[createPost] error:", err);
-      // Remove optimistic post on network failure so no dangling temp ID
       setPosts(cur => cur.filter(p => p.id !== tempId));
     } finally {
       setPublishing(false);
@@ -992,6 +1061,7 @@ function CommunityPostCard({
             )}
           </View>
           <View style={styles.metaRow}>
+            {/* FIX #6: Show vehicle model if available */}
             {!!post.vehicle && <><Text style={styles.vehicle}>{post.vehicle}</Text><Text style={styles.dot}>•</Text></>}
             <Text style={styles.time}>{post.createdAtLabel}</Text>
             <Text style={styles.dot}>•</Text>
@@ -1035,7 +1105,7 @@ function CommunityPostCard({
 
       <View style={styles.actionsDivider} />
 
-      {/* actions — disabled while post is pending approval */}
+      {/* actions */}
       <View style={[styles.actionsRow, isPending && { opacity: 0.4 }]}>
         <Pressable style={styles.actionButton} onPress={onToggleLike} disabled={isPending}>
           <Ionicons
@@ -1059,7 +1129,7 @@ function CommunityPostCard({
         </Pressable>
       </View>
 
-      {/* comments section — hidden while post is pending */}
+      {/* comments section */}
       {post.allowComments === "allow" && !isPending && (
         <>
           <View style={[styles.commentInputRow, { marginTop: 14, borderTopWidth: 1, borderTopColor: COLORS.divider, paddingTop: 12 }]}>
@@ -1171,7 +1241,6 @@ function CommentItem({
   const [confirmDelete,  setConfirmDelete]  = useState(false);
 
   const isMyComment = comment.authorId === myUserId;
-
   const handleCloseOptions = () => { setShowOptions(false); setConfirmDelete(false); };
 
   const handleSendReply = () => {
