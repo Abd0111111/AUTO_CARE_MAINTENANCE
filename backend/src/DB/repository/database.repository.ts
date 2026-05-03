@@ -98,15 +98,23 @@ export abstract class DatabaseRepository<
     filter,
     select,
     options,
+    populate,
   }: {
     filter?: Filter<TRawDocument>;
     select?: ProjectionType<TRawDocument> | undefined;
     options?: QueryOptions<TDocument> | undefined;
+    populate?: any;
   }): Promise<TDocument[] | [] | Lean<TDocument>[]> {
     const doc = this.model.find(filter || {}).select(select || '');
-    if (options?.populate) {
-      doc.populate(options.populate as PopulateOptions[]);
+    if (populate) {
+      doc.populate(populate as PopulateOptions[]);
     }
+
+    if (options?.sort) doc.sort(options.sort);
+    if (options?.skip) doc.skip(options.skip);
+    if (options?.limit) doc.limit(options.limit);
+    if (options?.lean) doc.lean();
+
     if (options?.sort) {
       doc.sort(options.sort);
     }
@@ -128,12 +136,14 @@ export abstract class DatabaseRepository<
     options = {},
     page = 'all',
     size = 5,
+    populate,
   }: {
     filter: Filter<TRawDocument>;
     select?: ProjectionType<TRawDocument> | undefined;
     options?: QueryOptions<TDocument> | undefined;
     page?: number | 'all';
     size?: number;
+    populate?: any;
   }): Promise<{
     docCount?: number;
     limit?: number;
@@ -155,6 +165,7 @@ export abstract class DatabaseRepository<
       filter,
       select,
       options,
+      populate,
     });
     return {
       docCount,

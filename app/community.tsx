@@ -186,11 +186,12 @@ function resolveAuthorName(
   return "User";
 }
 
-// FIX #6: Extract car/vehicle model from the populated createdBy object
+// FIX #6: Extract vehicle from populated createdBy (after backend populate fix)
 function resolveAuthorVehicle(createdBy: ApiPost["createdBy"]): string {
   if (typeof createdBy === "string") return "";
-  // Support common field names your API might use
-  return createdBy.car ?? createdBy.vehicle ?? createdBy.carModel ?? "";
+  const v = (createdBy as any).vehicleId;
+  if (!v) return "";
+  return [v.brand, v.model, v.year].filter(Boolean).join(" ");
 }
 
 function normalizeComment(c: ApiComment, myUserId: string, myName: string): CommunityComment {
@@ -216,15 +217,17 @@ function normalizePost(
   myUserId: string,
   myName: string,
   followedAuthorIds: Set<string>,   // FIX #4 & #5: global follow state
+  myVehicle?: string,               // FIX #6: my vehicle from profile context
 ): CommunityPost {
   const authorId = resolveAuthorId(p.createdBy);
+  const isMyPost = authorId === myUserId;
   return {
     id:             p._id ?? p.id ?? "",
     author:         resolveAuthorName(p.createdBy, myUserId, myName),
     authorId,
     initials:       getInitials(resolveAuthorName(p.createdBy, myUserId, myName)),
-    // FIX #6: Resolve vehicle from populated createdBy
-    vehicle:        resolveAuthorVehicle(p.createdBy),
+    // FIX #6: own posts use profile context vehicle; others use populated createdBy (after backend fix)
+    vehicle:        isMyPost ? (myVehicle ?? "") : resolveAuthorVehicle(p.createdBy),
     createdAtLabel: formatCreatedAt(p.createdAt),
     content:        p.content ?? "",
     tags:           p.tags ?? [],
@@ -317,11 +320,16 @@ export default function CommunityScreen() {
   // edit post
   const [editPostId,   setEditPostId]   = useState<string | null>(null);
   const [editPostText, setEditPostText] = useState("");
+  const [editPostTags, setEditPostTags] = useState("");
   const [saving,       setSaving]       = useState(false);
 
   const myName = getUserName(
     `${profile.user?.firstName ?? ""} ${profile.user?.lastName ?? ""}`.trim()
   );
+  // FIX #6: Build vehicle string from profile context
+  const myVehicle = profile.vehicle
+    ? [profile.vehicle.brand, profile.vehicle.model, profile.vehicle.year].filter(Boolean).join(" ")
+    : "";
 
   /* ── load userId once ── */
   useEffect(() => {
@@ -350,7 +358,7 @@ export default function CommunityScreen() {
 
       // We need the latest followedAuthorIds when normalizing — use a local copy
       setFollowedAuthorIds(prev => {
-        const normalized = result.map(p => normalizePost(p, uid, myName, prev));
+        const normalized = result.map(p => normalizePost(p, uid, myName, prev, myVehicle));
         setPosts(cur => replace ? normalized : [...cur, ...normalized]);
         return prev;
       });
@@ -454,26 +462,35 @@ export default function CommunityScreen() {
   const handleOpenEditPost = (post: CommunityPost) => {
     setEditPostId(post.id);
     setEditPostText(post.content);
+    setEditPostTags(post.tags.join(", "));
   };
 
   const handleSaveEditPost = async () => {
     if (!editPostId || !editPostText.trim()) return;
     setSaving(true);
     const currentPost = posts.find(p => p.id === editPostId);
-    setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: editPostText.trim() }));
+    const newTags = editPostTags.split(",").map(t => t.trim()).filter(Boolean);
     const prevContent = currentPost?.content ?? "";
+    const prevTags    = currentPost?.tags ?? [];
+    // Optimistic update for both content and tags
+    setPosts(cur => cur.map(p => p.id !== editPostId ? p : {
+      ...p, content: editPostText.trim(), tags: newTags,
+    }));
     try {
       const data = await apiPatch(`/posts/${editPostId}`, {
         content:       editPostText.trim(),
-        tags:          currentPost?.tags ?? [],
+        tags:          newTags,
         allowComments: currentPost?.allowComments ?? "allow",
         availability:  currentPost?.availability ?? "public",
       });
       console.log("[editPost] full response:", JSON.stringify(data));
       setEditPostId(null);
       setEditPostText("");
+      setEditPostTags("");
     } catch (err) {
-      setPosts(cur => cur.map(p => p.id !== editPostId ? p : { ...p, content: prevContent }));
+      setPosts(cur => cur.map(p => p.id !== editPostId ? p : {
+        ...p, content: prevContent, tags: prevTags,
+      }));
       console.log("[editPost] error:", err);
     } finally {
       setSaving(false);
@@ -706,7 +723,7 @@ export default function CommunityScreen() {
       author,
       authorId:       uid,
       initials:       getInitials(author),
-      vehicle:        "",
+      vehicle:        myVehicle,
       createdAtLabel: "Just now",
       content:        trimmed,
       tags,
@@ -750,7 +767,7 @@ export default function CommunityScreen() {
         null;
 
       if (saved && (saved._id || saved.id)) {
-        setPosts(cur => cur.map(p => p.id !== tempId ? p : normalizePost(saved, uid, myName, followedAuthorIds)));
+        setPosts(cur => cur.map(p => p.id !== tempId ? p : normalizePost(saved, uid, myName, followedAuthorIds, myVehicle)));
       } else {
         console.warn("[createPost] no saved post in response, removing optimistic post");
         setPosts(cur => cur.filter(p => p.id !== tempId));
@@ -962,24 +979,34 @@ export default function CommunityScreen() {
                 <Ionicons name="close" size={22} color={COLORS.text} />
               </Pressable>
             </View>
-            <TextInput
-              style={styles.composerInput}
-              value={editPostText}
-              onChangeText={setEditPostText}
-              multiline
-              textAlignVertical="top"
-              placeholderTextColor={COLORS.mutedDark}
-            />
-            <Pressable
-              style={[styles.publishButton, (!editPostText.trim() || saving) && styles.publishButtonDisabled]}
-              onPress={handleSaveEditPost}
-              disabled={!editPostText.trim() || saving}
-            >
-              {saving
-                ? <ActivityIndicator color={COLORS.text} size="small" />
-                : <Text style={styles.publishButtonText}>Save Changes</Text>
-              }
-            </Pressable>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <TextInput
+                style={styles.composerInput}
+                value={editPostText}
+                onChangeText={setEditPostText}
+                multiline
+                textAlignVertical="top"
+                placeholderTextColor={COLORS.mutedDark}
+              />
+              <Text style={styles.sheetLabel}>Tags (comma separated)</Text>
+              <TextInput
+                style={styles.tagsInput}
+                placeholder="e.g. oil, maintenance, tips"
+                placeholderTextColor={COLORS.mutedDark}
+                value={editPostTags}
+                onChangeText={setEditPostTags}
+              />
+              <Pressable
+                style={[styles.publishButton, (!editPostText.trim() || saving) && styles.publishButtonDisabled]}
+                onPress={handleSaveEditPost}
+                disabled={!editPostText.trim() || saving}
+              >
+                {saving
+                  ? <ActivityIndicator color={COLORS.text} size="small" />
+                  : <Text style={styles.publishButtonText}>Save Changes</Text>
+                }
+              </Pressable>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>

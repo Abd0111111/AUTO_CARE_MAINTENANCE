@@ -36,15 +36,11 @@ export class PostService {
   }
 
   async createPost(body: any, userId: string) {
-    await this.validateTags(body.tags, userId);
-
     const [post] = await this.postRepository.create({
       data: [
         {
           content: body.content,
-          tags: body.tags?.length
-            ? body.tags.map((id: string) => new Types.ObjectId(id))
-            : [],
+          tags: body.tags ?? [],
           createdBy: new Types.ObjectId(userId),
           allowComments: body.allowComments ?? AllowCommentsEnum.allow,
           availability: body.availability ?? PostAvailabilityEnum.public,
@@ -69,8 +65,6 @@ export class PostService {
 
     if (!post) throw new NotFoundException('post not found');
 
-    await this.validateTags(body.tags, userId);
-
     const updated = await this.postRepository.updateOne({
       filter: { _id: new Types.ObjectId(postId) },
       update: {
@@ -78,10 +72,7 @@ export class PostService {
           content: body.content ?? post.content,
           allowComments: body.allowComments ?? post.allowComments,
           availability: body.availability ?? post.availability,
-
-          tags: body.tags
-            ? body.tags.map((id: string) => new Types.ObjectId(id))
-            : post.tags,
+          tags: body.tags ?? post.tags,
         },
       },
     });
@@ -110,6 +101,16 @@ export class PostService {
       filter: { status: 'approved' },
       page,
       size,
+      populate: [
+        {
+          path: 'createdBy',
+          select: 'firstName lastName username vehicleId',
+          populate: {
+            path: 'vehicleId',
+            select: 'brand model year',
+          },
+        },
+      ],
     });
   }
 
