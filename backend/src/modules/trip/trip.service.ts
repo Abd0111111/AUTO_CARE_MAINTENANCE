@@ -44,7 +44,7 @@ Avg Speed: ${trip?.trip_summary?.avg_speed ?? 0} km/h
       trip_id: rawData.trip_id,
       date: rawData.date,
 
-      ...computedTrip, 
+      ...computedTrip,
     };
 
     return this.tripRepository.create({
