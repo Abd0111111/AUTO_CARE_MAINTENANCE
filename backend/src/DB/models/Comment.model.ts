@@ -11,8 +11,6 @@ export class Comment {
   @Prop({ type: Types.ObjectId, ref: 'Post', required: true })
   postId: Types.ObjectId;
 
-  // لو null = comment عادي
-  // لو فيه قيمة = reply
   @Prop({ type: Types.ObjectId, ref: 'Comment', default: null })
   commentId: Types.ObjectId;
 
@@ -31,10 +29,8 @@ export class Comment {
 
 const commentSchema = SchemaFactory.createForClass(Comment);
 
-/**
- * 🔥 replies (nested comments)
- */
-commentSchema.virtual('reply', {
+
+commentSchema.virtual('replies', {
   ref: 'Comment',
   localField: '_id',
   foreignField: 'commentId',

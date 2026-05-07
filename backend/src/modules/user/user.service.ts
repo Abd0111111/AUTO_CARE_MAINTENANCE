@@ -49,10 +49,13 @@ export class UserService {
         this.postRepository.count({
           filter: { createdBy: userObjectId, status: 'approved' },
         }),
-
-        this.postRepository.find({
-          filter: { createdBy: userObjectId, status: 'approved' },
-          options: { sort: { createdAt: -1 } },
+        this.postRepository.findWithDeepPopulate({
+          filter: {
+            createdBy: userObjectId,
+            status: 'approved',
+          },
+          page: 1,
+          size: 10,
         }),
 
         this.followRepository.findOne({
@@ -71,7 +74,9 @@ export class UserService {
         followingCount,
         postsCount,
       },
+
       posts,
+
       isFollowing: !!isFollowing,
     };
   }

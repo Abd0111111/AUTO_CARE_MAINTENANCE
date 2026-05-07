@@ -110,6 +110,35 @@ export class PostService {
             select: 'brand model year',
           },
         },
+
+        {
+          path: 'comments',
+          populate: [
+            {
+              path: 'createdBy',
+              select: 'firstName lastName username',
+            },
+
+            {
+              path: 'tags',
+              select: 'firstName lastName username',
+            },
+
+            {
+              path: 'replies',
+              populate: [
+                {
+                  path: 'createdBy',
+                  select: 'firstName lastName username',
+                },
+                {
+                  path: 'tags',
+                  select: 'firstName lastName username',
+                },
+              ],
+            },
+          ],
+        },
       ],
     });
   }

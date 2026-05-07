@@ -53,6 +53,9 @@ postSchema.virtual('comments', {
   ref: 'Comment',
   localField: '_id',
   foreignField: 'postId',
+    match: {
+    commentId: null, 
+  },
 });
 
 postSchema.set('toObject', { virtuals: true });

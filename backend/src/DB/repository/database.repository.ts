@@ -101,72 +101,58 @@ export abstract class DatabaseRepository<
     populate,
   }: {
     filter?: Filter<TRawDocument>;
-    select?: ProjectionType<TRawDocument> | undefined;
-    options?: QueryOptions<TDocument> | undefined;
+    select?: ProjectionType<TRawDocument>;
+    options?: QueryOptions<TDocument>;
     populate?: any;
-  }): Promise<TDocument[] | [] | Lean<TDocument>[]> {
-    const doc = this.model.find(filter || {}).select(select || '');
-    if (populate) {
-      doc.populate(populate as PopulateOptions[]);
-    }
+  }): Promise<TDocument[] | Lean<TDocument>[]> {
+    const doc = this.model.find(filter || {});
+
+    if (select) doc.select(select);
+
+    if (populate) doc.populate(populate);
 
     if (options?.sort) doc.sort(options.sort);
     if (options?.skip) doc.skip(options.skip);
     if (options?.limit) doc.limit(options.limit);
-    if (options?.lean) doc.lean();
+    // if (options?.lean) doc.lean();
 
-    if (options?.sort) {
-      doc.sort(options.sort);
-    }
-    if (options?.skip) {
-      doc.skip(options.skip);
-    }
-    if (options?.limit) {
-      doc.limit(options.limit);
-    }
-    if (options?.lean) {
-      doc.lean();
-    }
-    return await doc.exec();
+    return doc.exec();
   }
 
   async paginate({
     filter = {},
     select,
     options = {},
-    page = 'all',
+    page = 1,
     size = 5,
     populate,
   }: {
     filter: Filter<TRawDocument>;
-    select?: ProjectionType<TRawDocument> | undefined;
-    options?: QueryOptions<TDocument> | undefined;
+    select?: ProjectionType<TRawDocument>;
+    options?: QueryOptions<TDocument>;
     page?: number | 'all';
     size?: number;
     populate?: any;
-  }): Promise<{
-    docCount?: number;
-    limit?: number;
-    pages?: number;
-    currentPage?: number | undefined;
-    result?: TDocument[] | Lean<TDocument>[];
-  }> {
-    let docCount: number | undefined = undefined;
-    let pages: number | undefined = undefined;
+  }) {
+    let docCount: number | undefined;
+    let pages: number | undefined;
+
     if (page !== 'all') {
-      page = Math.floor(!page || page < 1 ? 1 : page);
-      options.limit = Math.floor(size < 1 || !size ? 5 : size);
+      page = Math.max(1, Number(page) || 1);
+      options.limit = Math.max(1, Number(size) || 5);
       options.skip = (page - 1) * options.limit;
 
       docCount = await this.model.countDocuments(filter);
       pages = Math.ceil(docCount / options.limit);
     }
+
     const result = await this.find({
       filter,
       select,
       options,
       populate,
     });
+
     return {
       docCount,
       limit: options.limit,
@@ -254,5 +240,58 @@ export abstract class DatabaseRepository<
     filter?: Filter<TRawDocument>;
   }): Promise<number> {
     return this.model.countDocuments(filter);
+  }
+
+  async findWithDeepPopulate({
+    filter,
+    page = 1,
+    size = 10,
+  }: {
+    filter: any;
+    page?: number;
+    size?: number;
+  }) {
+    const skip = (page - 1) * size;
+
+    return this.model
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(size)
+      .populate({
+        path: 'createdBy',
+        select: 'firstName lastName username vehicleId',
+        populate: {
+          path: 'vehicleId',
+          select: 'brand model year',
+        },
+      })
+      .populate({
+        path: 'comments',
+        populate: [
+          {
+            path: 'createdBy',
+            select: 'firstName lastName username',
+          },
+          {
+            path: 'tags',
+            select: 'firstName lastName username',
+          },
+          {
+            path: 'replies',
+            populate: [
+              {
+                path: 'createdBy',
+                select: 'firstName lastName username',
+              },
+              {
+                path: 'tags',
+                select: 'firstName lastName username',
+              },
+            ],
+          },
+        ],
+      })
+      .exec();
   }
 }
