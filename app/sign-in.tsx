@@ -18,6 +18,7 @@ import { BottomNavbar } from '@/components/bottom-navbar';
 import { signInStyles as styles } from '@/styles/sign-in.styles';
 import { BASE_URL } from '@/constants/api';
 import { jwtDecode } from 'jwt-decode';
+import { useEffect } from 'react';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -35,6 +36,17 @@ export default function SignInScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { updateProfile } = useUserProfile();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+      useEffect(() => {
+        const checkAuth = async () => {
+          const token = await AsyncStorage.getItem('access_token');
+
+          setIsLoggedIn(!!token);
+        };
+
+        checkAuth();
+      }, []);
 
   const handleSignIn = async () => {
     const trimmedEmail = email.trim();
@@ -252,7 +264,9 @@ if (needsVehicleSetup === 'true' || !savedVehicleProfile) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavbar activeTab="home" />
+      {isLoggedIn && (
+        <BottomNavbar activeTab="home" />
+      )}
     </View>
   );
 }
