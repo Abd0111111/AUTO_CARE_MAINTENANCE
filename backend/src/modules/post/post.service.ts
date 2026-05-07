@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { PostRepository, UserRepository } from 'src/DB';
+import { CommentRepository, FollowRepository, PostRepository, UserRepository } from 'src/DB';
 import {
   AllowCommentsEnum,
   LikeActionEnum,
@@ -16,6 +16,8 @@ export class PostService {
   constructor(
     private readonly postRepository: PostRepository,
     private readonly userRepository: UserRepository,
+    private readonly followRepository: FollowRepository,
+    private readonly commentRepository: CommentRepository,
   ) {}
 
   async validateTags(tags: string[], userId: string) {
@@ -97,50 +99,77 @@ export class PostService {
   }
 
   async postList(user: any, page: number, size: number) {
-    return this.postRepository.paginate({
-      filter: { status: 'approved' },
-      page,
-      size,
-      populate: [
-        {
-          path: 'createdBy',
-          select: 'firstName lastName username vehicleId',
-          populate: {
-            path: 'vehicleId',
-            select: 'brand model year',
+    const currentUserId = user._id;
+
+    const [posts, following] = await Promise.all([
+      this.postRepository.paginate({
+        filter: { status: 'approved' },
+        page,
+        size,
+        populate: [
+          {
+            path: 'createdBy',
+            select: 'firstName lastName username vehicleId',
+            populate: {
+              path: 'vehicleId',
+              select: 'brand model year',
+            },
           },
+
+          {
+            path: 'comments',
+            populate: [
+              {
+                path: 'createdBy',
+                select: 'firstName lastName username',
+              },
+
+              {
+                path: 'tags',
+                select: 'firstName lastName username',
+              },
+
+              {
+                path: 'replies',
+                populate: [
+                  {
+                    path: 'createdBy',
+                    select: 'firstName lastName username',
+                  },
+                  {
+                    path: 'tags',
+                    select: 'firstName lastName username',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+
+      this.followRepository.find({
+        filter: {
+          follower: new Types.ObjectId(currentUserId),
         },
+      }),
+    ]);
 
-        {
-          path: 'comments',
-          populate: [
-            {
-              path: 'createdBy',
-              select: 'firstName lastName username',
-            },
+    const followingSet = new Set(following.map((f) => f.following.toString()));
 
-            {
-              path: 'tags',
-              select: 'firstName lastName username',
-            },
+    const postsWithFollowState = posts.result.map((post: any) => {
+      const authorId =
+        post.createdBy?._id?.toString?.() || post.createdBy?.toString?.();
 
-            {
-              path: 'replies',
-              populate: [
-                {
-                  path: 'createdBy',
-                  select: 'firstName lastName username',
-                },
-                {
-                  path: 'tags',
-                  select: 'firstName lastName username',
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      return {
+        ...post.toObject(),
+        isFollowing: followingSet.has(authorId),
+      };
     });
+
+    return {
+      ...posts,
+      result: postsWithFollowState,
+    };
   }
 
   async changePostStatus(postId: string, status: string) {
@@ -170,6 +199,14 @@ export class PostService {
       throw new NotFoundException('post not found');
     }
 
+    // 🔥 delete all comments + replies
+    await this.commentRepository.deleteMany({
+      filter: {
+        postId: new Types.ObjectId(postId),
+      },
+    });
+
+    // delete post
     const deleted = await this.postRepository.deleteOne({
       filter: {
         _id: new Types.ObjectId(postId),

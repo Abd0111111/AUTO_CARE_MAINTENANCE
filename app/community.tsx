@@ -294,7 +294,7 @@ async function apiDelete(path: string) {
 ════════════════════════════════════════ */
 export default function CommunityScreen() {
   const insets   = useSafeAreaInsets();
-  const { profile } = useUserProfile();
+  const { profile, updateProfile  } = useUserProfile();
 
   const [myUserId, setMyUserId] = useState("");
 
@@ -411,17 +411,33 @@ export default function CommunityScreen() {
     }
   };
 
-  // FIX #5: Update the global followedAuthorIds set so ALL cards by this
-  // author update simultaneously. FIX #4: State persists on re-fetch.
-  const handleToggleFollow = async (postId: string, authorId: string, followedAuthor: boolean) => {
+  const handleToggleFollow = async (
+    postId: string,
+    authorId: string,
+    followedAuthor: boolean
+  ) => {
     if (posts.find(p => p.id === postId)?.pending) return;
 
-    // Update global follow set — triggers the useEffect above to sync all cards
+    const stats = {
+      followersCount: profile.stats?.followersCount ?? 0,
+      followingCount: profile.stats?.followingCount ?? 0,
+      postsCount: profile.stats?.postsCount ?? 0,
+    };
     setFollowedAuthorIds(prev => {
       const next = new Set(prev);
+
       if (followedAuthor) next.delete(authorId);
       else next.add(authorId);
+
       return next;
+    });
+    updateProfile({
+      stats: {
+        ...stats,
+        followingCount: followedAuthor
+          ? Math.max(0, stats.followingCount - 1)
+          : stats.followingCount + 1,
+      },
     });
 
     try {
@@ -431,13 +447,24 @@ export default function CommunityScreen() {
         await apiPost(`/follow/${authorId}`);
       }
     } catch (err) {
-      // Revert on failure
+      // rollback follow state
       setFollowedAuthorIds(prev => {
         const next = new Set(prev);
+
         if (followedAuthor) next.add(authorId);
         else next.delete(authorId);
+
         return next;
       });
+      updateProfile({
+        stats: {
+          ...stats,
+          followingCount: followedAuthor
+            ? stats.followingCount + 1
+            : Math.max(0, stats.followingCount - 1),
+        },
+      });
+
       console.log("toggleFollow error:", err);
     }
   };

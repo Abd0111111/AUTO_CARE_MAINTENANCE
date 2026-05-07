@@ -30,6 +30,9 @@ export class FollowService {
         },
       ],
     });
+    const followersCount = await this.countFollowers(followingId);
+    const followingCount = await this.countFollowing(followerId);
+    return { isFollowing: true, followersCount, followingCount };
   }
 
   async unfollowUser(followerId: string, followingId: string) {
@@ -39,6 +42,9 @@ export class FollowService {
         following: new Types.ObjectId(followingId),
       },
     });
+    const followersCount = await this.countFollowers(followingId);
+    const followingCount = await this.countFollowing(followerId);
+    return { isFollowing: false, followersCount, followingCount };
   }
 
   async getFollowers(userId: string) {

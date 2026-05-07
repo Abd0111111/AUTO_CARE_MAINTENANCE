@@ -10,20 +10,16 @@ export class FollowController {
   @Post(':userId')
   async follow(@Param('userId') userId: string, @Req() req) {
     const me = req.credentials.user._id;
-
-    await this.followService.followUser(me, userId);
-
-    return successResponse();
+    const data = await this.followService.followUser(me, userId);
+    return successResponse({ data });
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])
   @Delete(':userId')
   async unfollow(@Param('userId') userId: string, @Req() req) {
     const me = req.credentials.user._id;
-
-    await this.followService.unfollowUser(me, userId);
-
-    return successResponse();
+    const data = await this.followService.unfollowUser(me, userId);
+    return successResponse({ data });
   }
 
   @Auth([RoleEnum.user, RoleEnum.admin])
